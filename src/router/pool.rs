@@ -120,7 +120,7 @@ pub fn uniswap_v3_swap(
         ..
     } = state
     {
-        let mut state_sqrt_price_x96 = *sqrt_price_x96;
+        let state_sqrt_price_x96 = *sqrt_price_x96;
         let mut state_liquidity = U256::from(*liquidity);
         let mut amount_specified_remaining = amount_in;
         let mut amount_calculated = U256::ZERO;

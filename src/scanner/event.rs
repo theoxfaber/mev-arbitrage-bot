@@ -18,7 +18,7 @@ pub struct EventScanner {
 impl EventScanner {
     pub fn new(opportunity_tx: mpsc::Sender<SandwichOpportunity>) -> Self {
         Self {
-            opportunity_tx: opportunity_tx,
+            opportunity_tx,
         }
     }
 

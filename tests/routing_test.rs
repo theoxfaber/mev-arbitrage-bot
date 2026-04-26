@@ -90,6 +90,6 @@ fn test_no_arbitrage_found_in_efficient_market() {
 
     router.update_pool(p1);
 
-    let _routes = router.find_arbitrage_routes();
+    let routes = router.find_arbitrage_routes();
     assert!(routes.is_empty());
 }
