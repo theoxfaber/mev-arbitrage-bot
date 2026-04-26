@@ -23,7 +23,7 @@
 
 use mev_arbitrage_bot::config::Config;
 use mev_arbitrage_bot::db::Database;
-use mev_arbitrage_bot::executor::{BiddingEngine, BundleBuilder, FlashbotsRelayer, WalletPool};
+use mev_arbitrage_bot::executor::{BundleBuilder, FlashbotsRelayer, WalletPool};
 use mev_arbitrage_bot::metrics;
 use mev_arbitrage_bot::router::ArbitrageRouter;
 use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
@@ -117,7 +117,9 @@ async fn main() -> Result<()> {
     mempool_scanner.start(opportunity_tx.clone()).await?;
 
     // Start Event (Log) scanner
-    let event_scanner = Arc::new(mev_arbitrage_bot::scanner::EventScanner::new(opportunity_tx.clone()));
+    let event_scanner = Arc::new(mev_arbitrage_bot::scanner::EventScanner::new(
+        opportunity_tx.clone(),
+    ));
     let _event_scanner_spawn = Arc::clone(&event_scanner);
     tokio::spawn(async move {
         // In a real implementation, this would subscribe to eth_subscribe("logs")

@@ -16,6 +16,7 @@ pub struct BiddingEngine {
     competitor_floor_bps: Arc<RwLock<u32>>,
     /// Base configuration.
     min_profit_bps: u32,
+    #[allow(dead_code)]
     base_miner_reward_bps: u32,
     max_miner_reward_bps: u32,
     reference_gas_price_gwei: u64,
@@ -24,7 +25,7 @@ pub struct BiddingEngine {
 impl BiddingEngine {
     pub fn new(
         min_profit_bps: u32,
-        base_miner_reward_bps: u32,
+        #[allow(dead_code)] base_miner_reward_bps: u32,
         max_miner_reward_bps: u32,
         reference_gas_price_gwei: u64,
     ) -> Self {
@@ -62,7 +63,8 @@ impl BiddingEngine {
         let base_fee_gwei_x100 = base_fee_wei / U256::from(10_000_000u64);
         let ref_gwei_x100 = self.reference_gas_price_gwei * 100;
         let pressure_ratio_bps = if ref_gwei_x100 > 0 {
-            (base_fee_gwei_x100 * U256::from(10_000u64) / U256::from(ref_gwei_x100)).to::<u64>() as u32
+            (base_fee_gwei_x100 * U256::from(10_000u64) / U256::from(ref_gwei_x100)).to::<u64>()
+                as u32
         } else {
             10_000
         };
@@ -70,10 +72,8 @@ impl BiddingEngine {
         // Scale reward: max(base_reward, competitor_floor) * pressure_ratio
         let floor = *self.competitor_floor_bps.read();
         let scaled_bps = (floor as u64 * pressure_ratio_bps as u64 / 10_000) as u32;
-        
-        let effective_bps = scaled_bps
-            .max(floor)
-            .min(self.max_miner_reward_bps);
+
+        let effective_bps = scaled_bps.max(floor).min(self.max_miner_reward_bps);
 
         let miner_reward = (net_profit * U256::from(effective_bps)) / U256::from(10_000u64);
         let min_profit = (net_profit * U256::from(self.min_profit_bps)) / U256::from(10_000u64);

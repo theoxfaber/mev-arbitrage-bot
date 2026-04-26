@@ -100,7 +100,7 @@ impl ArbitrageRouter {
 
         // 2. Component-based decomposition (Tarjan's SCC)
         let sccs = tarjan_scc(&petgraph);
-        
+
         // 3. Run SPFA in parallel across SCCs
         let all_routes: Vec<ArbitrageRoute> = sccs
             .into_par_iter()
@@ -130,17 +130,20 @@ impl ArbitrageRouter {
                 final_route.base_token = anchor;
                 final_route.legs = rotated_legs;
 
-                let mut cycle_key: Vec<Address> = final_route.legs.iter().map(|l| l.pool.address()).collect();
+                let mut cycle_key: Vec<Address> =
+                    final_route.legs.iter().map(|l| l.pool.address()).collect();
                 cycle_key.sort();
-                if seen_cycles.insert(cycle_key) {
-                    if final_route.num_hops() <= MAX_HOPS {
-                        final_routes.push(final_route);
-                    }
+                if seen_cycles.insert(cycle_key) && final_route.num_hops() <= MAX_HOPS {
+                    final_routes.push(final_route);
                 }
             }
         }
 
-        final_routes.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        final_routes.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         final_routes
     }
 
@@ -160,7 +163,7 @@ impl ArbitrageRouter {
         // We use each token in the SCC as a potential source for negative cycles.
         // Actually, one SPFA from a virtual source connected to all nodes would find all cycles.
         // Or simply initialize all distances to 0.0 and queue all nodes.
-        
+
         let mut dist = vec![0.0f64; n];
         let mut count = vec![0usize; n];
         let mut in_queue = vec![true; n];
@@ -184,18 +187,21 @@ impl ArbitrageRouter {
                     if dist[u_idx] + edge.weight < dist[v_idx] - 1e-11 {
                         dist[v_idx] = dist[u_idx] + edge.weight;
                         predecessor[v_idx] = Some((u_idx, edge.clone()));
-                        
+
                         if !in_queue[v_idx] {
                             count[v_idx] += 1;
                             if count[v_idx] >= n {
                                 // Negative cycle detected!
-                                if let Some(route) = self.extract_spfa_cycle(&predecessor, v_idx, component_tokens) {
+                                if let Some(route) =
+                                    self.extract_spfa_cycle(&predecessor, v_idx, component_tokens)
+                                {
                                     found_routes.push(route);
                                 }
-                                // Reset count to prevent infinite loop while still searching others
-                                count[v_idx] = 0; 
+                                // Reset count and skip to prevent infinite loop
+                                count[v_idx] = 0;
+                                continue;
                             }
-                            
+
                             // SLF (Small Label First) optimization
                             if !queue.is_empty() && dist[v_idx] < dist[*queue.front().unwrap()] {
                                 queue.push_front(v_idx);
@@ -220,10 +226,12 @@ impl ArbitrageRouter {
     ) -> Option<ArbitrageRoute> {
         let mut visited = vec![false; tokens.len()];
         let mut curr = start_idx;
-        
+
         // Walk back to find a node in the cycle
         for _ in 0..tokens.len() {
-            if visited[curr] { break; }
+            if visited[curr] {
+                break;
+            }
             visited[curr] = true;
             curr = predecessor[curr].as_ref()?.0;
         }
@@ -238,24 +246,35 @@ impl ArbitrageRouter {
             edges.push(edge.clone());
             total_weight += edge.weight;
             curr = *prev;
-            if curr == cycle_start { break; }
-            if edges.len() > MAX_HOPS { return None; }
+            if curr == cycle_start {
+                break;
+            }
+            if edges.len() > MAX_HOPS {
+                return None;
+            }
         }
         edges.reverse();
 
         if total_weight < -MIN_LOG_PROFIT {
             let log_profit = -total_weight;
             let multiplier = log_profit.exp();
-            
+
             Some(ArbitrageRoute {
                 base_token: tokens[cycle_start],
-                legs: edges.iter().map(|e| SwapLeg {
-                    pool: e.pool.clone(),
-                    token_in: if e.zero_for_one { e.pool.token0() } else { e.pool.token1() },
-                    token_out: e.to,
-                    amount_in: U256::ZERO,
-                    expected_amount_out: U256::ZERO,
-                }).collect(),
+                legs: edges
+                    .iter()
+                    .map(|e| SwapLeg {
+                        pool: e.pool.clone(),
+                        token_in: if e.zero_for_one {
+                            e.pool.token0()
+                        } else {
+                            e.pool.token1()
+                        },
+                        token_out: e.to,
+                        amount_in: U256::ZERO,
+                        expected_amount_out: U256::ZERO,
+                    })
+                    .collect(),
                 expected_gross_profit: U256::ZERO,
                 optimal_loan_size: U256::ZERO,
                 confidence: (multiplier - 1.0).min(1.0),

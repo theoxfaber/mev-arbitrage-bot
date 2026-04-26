@@ -28,17 +28,22 @@ impl Chain {
 /// Unified trait for chain-specific parameters and logic.
 pub trait ChainAdapter: Send + Sync {
     fn chain(&self) -> Chain;
-    
+
     /// Address of the Multicall3 contract on this chain.
     fn multicall_address(&self) -> Address;
-    
+
     /// Typical block time in seconds.
     fn average_block_time_ms(&self) -> u64;
-    
+
     /// Calculate the effective gas price for a bundle.
     /// On L2s, this includes the L1 data fee.
-    fn estimate_effective_gas_price(&self, gas_used: u64, base_fee: U256, priority_fee: U256) -> U256;
-    
+    fn estimate_effective_gas_price(
+        &self,
+        gas_used: u64,
+        base_fee: U256,
+        priority_fee: U256,
+    ) -> U256;
+
     /// Get recommended flash loan providers (e.g., Balancer, Aave, UniswapV3).
     fn recommended_flash_loan_providers(&self) -> Vec<FlashLoanProvider>;
 }
@@ -53,23 +58,53 @@ pub enum FlashLoanProvider {
 
 pub struct EthereumAdapter;
 impl ChainAdapter for EthereumAdapter {
-    fn chain(&self) -> Chain { Chain::Ethereum }
-    fn multicall_address(&self) -> Address { "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap() }
-    fn average_block_time_ms(&self) -> u64 { 12000 }
-    fn estimate_effective_gas_price(&self, _gas_used: u64, base_fee: U256, priority_fee: U256) -> U256 {
+    fn chain(&self) -> Chain {
+        Chain::Ethereum
+    }
+    fn multicall_address(&self) -> Address {
+        "0xcA11bde05977b3631167028862bE2a173976CA11"
+            .parse()
+            .unwrap()
+    }
+    fn average_block_time_ms(&self) -> u64 {
+        12000
+    }
+    fn estimate_effective_gas_price(
+        &self,
+        _gas_used: u64,
+        base_fee: U256,
+        priority_fee: U256,
+    ) -> U256 {
         base_fee + priority_fee
     }
     fn recommended_flash_loan_providers(&self) -> Vec<FlashLoanProvider> {
-        vec![FlashLoanProvider::AaveV3, FlashLoanProvider::BalancerV2, FlashLoanProvider::UniswapV3]
+        vec![
+            FlashLoanProvider::AaveV3,
+            FlashLoanProvider::BalancerV2,
+            FlashLoanProvider::UniswapV3,
+        ]
     }
 }
 
 pub struct ArbitrumAdapter;
 impl ChainAdapter for ArbitrumAdapter {
-    fn chain(&self) -> Chain { Chain::Arbitrum }
-    fn multicall_address(&self) -> Address { "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap() }
-    fn average_block_time_ms(&self) -> u64 { 250 }
-    fn estimate_effective_gas_price(&self, _gas_used: u64, base_fee: U256, priority_fee: U256) -> U256 {
+    fn chain(&self) -> Chain {
+        Chain::Arbitrum
+    }
+    fn multicall_address(&self) -> Address {
+        "0xcA11bde05977b3631167028862bE2a173976CA11"
+            .parse()
+            .unwrap()
+    }
+    fn average_block_time_ms(&self) -> u64 {
+        250
+    }
+    fn estimate_effective_gas_price(
+        &self,
+        _gas_used: u64,
+        base_fee: U256,
+        priority_fee: U256,
+    ) -> U256 {
         // Arbitrum uses a different pricing model, but simplified for now
         base_fee + priority_fee
     }
@@ -80,10 +115,23 @@ impl ChainAdapter for ArbitrumAdapter {
 
 pub struct BaseAdapter;
 impl ChainAdapter for BaseAdapter {
-    fn chain(&self) -> Chain { Chain::Base }
-    fn multicall_address(&self) -> Address { "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap() }
-    fn average_block_time_ms(&self) -> u64 { 2000 }
-    fn estimate_effective_gas_price(&self, _gas_used: u64, base_fee: U256, priority_fee: U256) -> U256 {
+    fn chain(&self) -> Chain {
+        Chain::Base
+    }
+    fn multicall_address(&self) -> Address {
+        "0xcA11bde05977b3631167028862bE2a173976CA11"
+            .parse()
+            .unwrap()
+    }
+    fn average_block_time_ms(&self) -> u64 {
+        2000
+    }
+    fn estimate_effective_gas_price(
+        &self,
+        _gas_used: u64,
+        base_fee: U256,
+        priority_fee: U256,
+    ) -> U256 {
         // Base (OP Stack) has L1 data fee.
         // simplified: base_fee + priority_fee + (l1_fee / gas_used)
         base_fee + priority_fee
