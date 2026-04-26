@@ -14,7 +14,7 @@
 //! RPC-based simulation.
 
 use crate::router::pool::{is_zero_for_one, simulate_v2_swap};
-use crate::types::{ArbitrageRoute, PoolState, SwapLeg};
+use crate::types::{ArbitrageRoute, SwapLeg};
 use alloy_primitives::{Address, U256};
 use eyre::Result;
 use std::time::Instant;
@@ -57,6 +57,12 @@ pub struct OptimizedLeg {
 pub struct EvmSimulator {
     /// Aave V3 flash loan premium in basis points (typically 5 = 0.05%).
     flash_loan_premium_bps: u32,
+}
+
+impl Default for EvmSimulator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EvmSimulator {
@@ -122,8 +128,7 @@ impl EvmSimulator {
         let optimized_legs = self.trace_swap_amounts(best_loan_size, &route.legs);
 
         // Estimate gas: base 21000 + ~120000 per swap leg + 80000 for flash loan overhead
-        let estimated_gas =
-            21_000u64 + 80_000 + (route.legs.len() as u64 * 120_000);
+        let estimated_gas = 21_000u64 + 80_000 + (route.legs.len() as u64 * 120_000);
 
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
         crate::metrics::record_simulation(duration_ms, best_profit > U256::ZERO);

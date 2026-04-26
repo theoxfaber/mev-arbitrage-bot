@@ -24,12 +24,12 @@
 use mev_arbitrage_bot::config::Config;
 use mev_arbitrage_bot::db::Database;
 use mev_arbitrage_bot::executor::{BiddingStrategy, BundleBuilder, FlashbotsRelayer, WalletPool};
+use mev_arbitrage_bot::metrics;
 use mev_arbitrage_bot::router::ArbitrageRouter;
 use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
 use mev_arbitrage_bot::scanner::{MempoolScanner, MevShareScanner};
 use mev_arbitrage_bot::simulator::EvmSimulator;
 use mev_arbitrage_bot::types::SandwichOpportunity;
-use mev_arbitrage_bot::metrics;
 
 use alloy_primitives::{Address, U256};
 use eyre::Result;
@@ -213,6 +213,7 @@ async fn main() -> Result<()> {
 }
 
 /// Process a single arbitrage opportunity through the full pipeline.
+#[allow(clippy::too_many_arguments)]
 async fn process_opportunity(
     opportunity: SandwichOpportunity,
     router: &ArbitrageRouter,
@@ -340,8 +341,8 @@ async fn process_opportunity(
 fn init_logging(config: &Config) {
     use tracing_subscriber::{fmt, EnvFilter};
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.cli.log_level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.cli.log_level));
 
     if config.cli.log_json {
         fmt()

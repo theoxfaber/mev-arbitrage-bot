@@ -102,7 +102,10 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        ensure!(!private_keys.is_empty(), "PRIVATE_KEYS must contain at least one key");
+        ensure!(
+            !private_keys.is_empty(),
+            "PRIVATE_KEYS must contain at least one key"
+        );
 
         let executor_contract = Address::from_str(&executor_contract_raw)
             .wrap_err("Invalid EXECUTOR_CONTRACT_ADDRESS")?;

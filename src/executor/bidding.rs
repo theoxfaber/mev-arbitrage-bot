@@ -76,7 +76,8 @@ impl BiddingStrategy {
         };
 
         // 3. Scale miner reward: base_reward_bps * pressure_ratio / 10000
-        let scaled_bps = (self.base_miner_reward_bps as u64 * pressure_ratio_bps as u64 / 10_000) as u32;
+        let scaled_bps =
+            (self.base_miner_reward_bps as u64 * pressure_ratio_bps as u64 / 10_000) as u32;
         let effective_bps = scaled_bps
             .max(self.base_miner_reward_bps)
             .min(self.max_miner_reward_bps);

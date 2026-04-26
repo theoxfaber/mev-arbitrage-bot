@@ -6,6 +6,7 @@ use alloy_primitives::{Address, Bytes, U256};
 
 /// Builds Flashbots-compatible bundles from simulation results.
 pub struct BundleBuilder {
+    #[allow(dead_code)]
     executor_contract: Address,
 }
 

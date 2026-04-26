@@ -74,7 +74,12 @@ impl DedupeCache {
 
         if self.cache.len() >= self.max_size {
             let to_remove = self.max_size / 10;
-            let keys: Vec<TxHash> = self.cache.iter().take(to_remove).map(|e| *e.key()).collect();
+            let keys: Vec<TxHash> = self
+                .cache
+                .iter()
+                .take(to_remove)
+                .map(|e| *e.key())
+                .collect();
             for key in keys {
                 self.cache.remove(&key);
             }
@@ -144,10 +149,7 @@ impl MempoolScanner {
     /// Start the scanner: spawns a background task that reads pending transactions
     /// from the `incoming` channel, deduplicates them, decodes swap calldata,
     /// and forwards actionable opportunities to the `outgoing` channel.
-    pub async fn start(
-        &self,
-        outgoing: mpsc::Sender<SandwichOpportunity>,
-    ) -> Result<()> {
+    pub async fn start(&self, outgoing: mpsc::Sender<SandwichOpportunity>) -> Result<()> {
         tracing::info!(
             rpc_count = self.ws_urls.len(),
             "Starting mempool scanner on {} RPC endpoints",
@@ -210,9 +212,7 @@ impl MempoolScanner {
             if !tx.input.is_empty() {
                 if let Some(opportunity) = self.decoder.decode(tx.hash, to, &tx.input) {
                     if opportunity.is_actionable {
-                        crate::metrics::record_opportunity_found(
-                            &opportunity.protocol.to_string(),
-                        );
+                        crate::metrics::record_opportunity_found(&opportunity.protocol.to_string());
                         let _ = outgoing.try_send(opportunity);
                     }
                 }

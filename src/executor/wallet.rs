@@ -71,8 +71,7 @@ impl WalletPool {
         F: FnOnce(&str, Address, u64) -> Result<T>,
     {
         // Round-robin selection
-        let idx =
-            self.current_index.fetch_add(1, Ordering::Relaxed) as usize % self.wallets.len();
+        let idx = self.current_index.fetch_add(1, Ordering::Relaxed) as usize % self.wallets.len();
         let wallet = &self.wallets[idx];
 
         // Acquire per-wallet lock

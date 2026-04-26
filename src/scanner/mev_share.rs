@@ -3,7 +3,7 @@
 //! Connects to the MEV-Share event stream to receive private transaction hints.
 
 use crate::types::MevShareHint;
-use alloy_primitives::{Address, TxHash, U256};
+use alloy_primitives::{Address, TxHash};
 use eyre::Result;
 use reqwest::Client;
 use tokio::sync::mpsc;
@@ -13,6 +13,12 @@ const MEV_SHARE_SSE_URL: &str = "https://mev-share.flashbots.net";
 /// Scanner for the Flashbots MEV-Share event stream.
 pub struct MevShareScanner {
     client: Client,
+}
+
+impl Default for MevShareScanner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MevShareScanner {
@@ -46,10 +52,7 @@ impl MevShareScanner {
         Ok(())
     }
 
-    async fn run_sse_stream(
-        client: &Client,
-        tx: &mpsc::Sender<MevShareHint>,
-    ) -> Result<()> {
+    async fn run_sse_stream(client: &Client, tx: &mpsc::Sender<MevShareHint>) -> Result<()> {
         let response = client
             .get(MEV_SHARE_SSE_URL)
             .header("Accept", "text/event-stream")
@@ -99,11 +102,13 @@ impl MevShareScanner {
         let hash_str = v.get("hash")?.as_str()?;
         let hash: TxHash = hash_str.parse().ok()?;
 
-        let to = v.get("to")
+        let to = v
+            .get("to")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<Address>().ok());
 
-        let calldata = v.get("calldata")
+        let calldata = v
+            .get("calldata")
             .and_then(|v| v.as_str())
             .and_then(|s| hex::decode(s.strip_prefix("0x").unwrap_or(s)).ok());
 
@@ -121,7 +126,6 @@ impl MevShareScanner {
         if hint.to.is_none() {
             return false;
         }
-        hint.calldata.is_some()
-            || hint.logs.as_ref().map(|l| !l.is_empty()).unwrap_or(false)
+        hint.calldata.is_some() || hint.logs.as_ref().map(|l| !l.is_empty()).unwrap_or(false)
     }
 }

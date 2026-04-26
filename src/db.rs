@@ -50,6 +50,7 @@ impl Database {
     }
 
     /// Log a bundle submission result.
+    #[allow(clippy::too_many_arguments)]
     pub fn log_bundle(
         &self,
         tx_hash: &str,

@@ -11,7 +11,6 @@
 //! before submitting, and abort if the target block has already passed.
 
 use crate::types::{BundleOutcome, FlashbotsBundle};
-use eyre::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;

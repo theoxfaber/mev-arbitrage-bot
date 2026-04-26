@@ -233,7 +233,7 @@ impl ArbitrageRouter {
                     let mut pred_clone = predecessor.clone();
                     pred_clone[to_idx] = Some((from_idx, edge.clone()));
                     // Found a negative cycle — trace it back
-                    return self.extract_cycle(&pred_clone, to_idx, &all_tokens, &idx);
+                    return self.extract_cycle(&pred_clone, to_idx, all_tokens, &idx);
                 }
             }
         }
@@ -246,7 +246,7 @@ impl ArbitrageRouter {
         &self,
         predecessor: &[Option<(usize, Edge)>],
         start: usize,
-        all_tokens: &[Address],
+        _all_tokens: &[Address],
         _idx: &HashMap<Address, usize>,
     ) -> Option<Vec<Edge>> {
         let n = predecessor.len();

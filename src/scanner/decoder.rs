@@ -32,27 +32,37 @@ pub fn new_decimals_cache() -> DecimalsCache {
     let cache = DashMap::new();
     // WETH (18 decimals)
     cache.insert(
-        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse::<Address>().unwrap(),
+        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+            .parse::<Address>()
+            .unwrap(),
         18,
     );
     // USDC (6 decimals)
     cache.insert(
-        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse::<Address>().unwrap(),
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+            .parse::<Address>()
+            .unwrap(),
         6,
     );
     // USDT (6 decimals)
     cache.insert(
-        "0xdAC17F958D2ee523a2206206994597C13D831ec7".parse::<Address>().unwrap(),
+        "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+            .parse::<Address>()
+            .unwrap(),
         6,
     );
     // DAI (18 decimals)
     cache.insert(
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F".parse::<Address>().unwrap(),
+        "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+            .parse::<Address>()
+            .unwrap(),
         18,
     );
     // WBTC (8 decimals)
     cache.insert(
-        "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599".parse::<Address>().unwrap(),
+        "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
+            .parse::<Address>()
+            .unwrap(),
         8,
     );
     Arc::new(cache)
@@ -71,7 +81,12 @@ impl SwapDecoder {
     }
 
     /// Attempt to decode a transaction's calldata into a `SandwichOpportunity`.
-    pub fn decode(&self, tx_hash: TxHash, _to: Address, data: &Bytes) -> Option<SandwichOpportunity> {
+    pub fn decode(
+        &self,
+        tx_hash: TxHash,
+        _to: Address,
+        data: &Bytes,
+    ) -> Option<SandwichOpportunity> {
         if data.len() < 4 {
             return None;
         }
@@ -87,7 +102,11 @@ impl SwapDecoder {
 
     /// Decode UniswapV3 exactInputSingle.
     /// ABI: exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))
-    fn decode_v3_exact_input_single(&self, tx_hash: TxHash, data: &Bytes) -> Option<SandwichOpportunity> {
+    fn decode_v3_exact_input_single(
+        &self,
+        tx_hash: TxHash,
+        data: &Bytes,
+    ) -> Option<SandwichOpportunity> {
         // Manual ABI decoding — each field is 32 bytes, offset by 4 (selector)
         if data.len() < 4 + 8 * 32 {
             return None;
@@ -101,7 +120,8 @@ impl SwapDecoder {
         let amount_in = U256::from_be_slice(&data[offset + 128..offset + 160]);
         let amount_out_min = U256::from_be_slice(&data[offset + 160..offset + 192]);
 
-        let slippage_bps = self.compute_slippage_bps(token_in, token_out, amount_in, amount_out_min);
+        let slippage_bps =
+            self.compute_slippage_bps(token_in, token_out, amount_in, amount_out_min);
 
         Some(SandwichOpportunity {
             tx_hash,
@@ -139,14 +159,13 @@ impl SwapDecoder {
             return None;
         }
 
-        let token_in = Address::from_slice(
-            &data[path_offset + 32 + 12..path_offset + 64],
-        );
+        let token_in = Address::from_slice(&data[path_offset + 32 + 12..path_offset + 64]);
         let token_out = Address::from_slice(
             &data[path_offset + 32 + (path_len - 1) * 32 + 12..path_offset + 32 + path_len * 32],
         );
 
-        let slippage_bps = self.compute_slippage_bps(token_in, token_out, amount_in, amount_out_min);
+        let slippage_bps =
+            self.compute_slippage_bps(token_in, token_out, amount_in, amount_out_min);
 
         Some(SandwichOpportunity {
             tx_hash,

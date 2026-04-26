@@ -1,12 +1,11 @@
-use mev_arbitrage_bot::scanner::MempoolScanner;
-use mev_arbitrage_bot::scanner::decoder::{new_decimals_cache};
-use mev_arbitrage_bot::types::SandwichOpportunity;
-use tokio::sync::mpsc;
-use std::sync::Arc;
-use tokio::task;
-use std::time::Duration;
-use alloy_primitives::{Bytes, TxHash, Address};
+use alloy_primitives::{Address, Bytes, TxHash};
+use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
 use mev_arbitrage_bot::scanner::mempool::PendingTx;
+use mev_arbitrage_bot::scanner::MempoolScanner;
+use mev_arbitrage_bot::types::SandwichOpportunity;
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio::task;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_mempool_scanner_deduplication_under_chaos() {
@@ -29,7 +28,7 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
     for rpc_idx in 0..3 {
         let scanner_clone = Arc::clone(&scanner);
         let tx_clone = tx.clone();
-        
+
         handles.push(task::spawn(async move {
             for i in 0..tx_count {
                 // Same transaction hashes sent by multiple RPCs
@@ -37,7 +36,7 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
                 let val_bytes = (i as u64).to_be_bytes();
                 hash_bytes[24..32].copy_from_slice(&val_bytes);
                 let tx_hash = TxHash::from(hash_bytes);
-                
+
                 // Construct a mock exactInputSingle calldata to trigger the decoder occasionally
                 // (every 1000th tx is a valid UniswapV3 swap)
                 let input = if i % 1000 == 0 {
@@ -69,19 +68,22 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
     for handle in handles {
         handle.await.unwrap();
     }
-    
+
     drop(tx); // Close the channel
 
     // Collect all valid opportunities emitted
     let mut opportunities = 0;
-    while let Some(_) = rx.recv().await {
+    while rx.recv().await.is_some() {
         opportunities += 1;
     }
 
     // Out of 10,000 unique tx hashes, 10 are valid swaps (0, 1000, 2000... 9000).
-    // The decoder will parse them, but with all 0 bytes, slippage is 100%, 
+    // The decoder will parse them, but with all 0 bytes, slippage is 100%,
     // so `is_actionable` will be true.
     // Because of deduplication, we should get exactly 10 opportunities out,
     // not 30 (since 3 RPCs raced to deliver them).
-    assert_eq!(opportunities, 10, "Deduplication failed to prevent duplicate opportunities");
+    assert_eq!(
+        opportunities, 10,
+        "Deduplication failed to prevent duplicate opportunities"
+    );
 }

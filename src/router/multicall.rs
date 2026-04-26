@@ -30,9 +30,7 @@ pub fn encode_liquidity() -> Bytes {
 /// Build a Multicall3 aggregate call for pool state reads.
 ///
 /// Returns a list of (target, calldata) pairs to be batched.
-pub fn build_pool_state_calls(
-    pools: &[(Address, PoolType)],
-) -> Vec<(Address, Bytes)> {
+pub fn build_pool_state_calls(pools: &[(Address, PoolType)]) -> Vec<(Address, Bytes)> {
     let mut calls = Vec::new();
 
     for (addr, pool_type) in pools {
@@ -56,6 +54,13 @@ pub fn build_pool_state_calls(
 /// Intermediate update type for pool state parsing.
 #[derive(Debug)]
 pub enum PoolStateUpdate {
-    V2Reserves { reserve0: U256, reserve1: U256 },
-    V3State { sqrt_price_x96: U256, tick: i32, liquidity: u128 },
+    V2Reserves {
+        reserve0: U256,
+        reserve1: U256,
+    },
+    V3State {
+        sqrt_price_x96: U256,
+        tick: i32,
+        liquidity: u128,
+    },
 }

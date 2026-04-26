@@ -1,16 +1,12 @@
 //! Pool state types and constant-product / concentrated-liquidity math.
 
-use crate::types::{PoolState, PoolType};
+use crate::types::PoolState;
 use alloy_primitives::{Address, U256};
 
 /// Simulate a swap through a V2-style constant-product pool.
 ///
 /// Formula: amountOut = (amountIn * fee_complement * reserveOut) / (reserveIn * 1e6 + amountIn * fee_complement)
-pub fn simulate_v2_swap(
-    pool: &PoolState,
-    amount_in: U256,
-    zero_for_one: bool,
-) -> U256 {
+pub fn simulate_v2_swap(pool: &PoolState, amount_in: U256, zero_for_one: bool) -> U256 {
     let (reserve_in, reserve_out) = if zero_for_one {
         (pool.reserve0, pool.reserve1)
     } else {
@@ -41,11 +37,7 @@ pub fn simulate_v2_swap(
 ///
 /// For production, tick-crossing simulation would be needed for large trades
 /// that move the price across multiple tick boundaries.
-pub fn simulate_v3_swap(
-    pool: &PoolState,
-    amount_in: U256,
-    zero_for_one: bool,
-) -> U256 {
+pub fn simulate_v3_swap(pool: &PoolState, amount_in: U256, zero_for_one: bool) -> U256 {
     // Fall back to virtual-reserve constant-product approximation
     simulate_v2_swap(pool, amount_in, zero_for_one)
 }
