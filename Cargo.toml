@@ -1,0 +1,87 @@
+[package]
+name = "mev-arbitrage-bot"
+version = "3.0.0"
+edition = "2021"
+rust-version = "1.80"
+description = """
+Production-grade MEV arbitrage engine for Ethereum, written in Rust.
+Discovers arbitrage via Bellman-Ford negative-cycle detection on a live pool graph,
+simulates trades locally via revm (no RPC roundtrips), and executes atomically
+through Aave V3 flash loans with multi-relay Flashbots bundle submission.
+"""
+authors = ["theoxfaber"]
+license = "MIT"
+repository = "https://github.com/theoxfaber/mev-arbitrage-bot"
+keywords = ["ethereum", "mev", "arbitrage", "flashbots", "defi"]
+categories = ["finance", "cryptography::cryptocurrencies"]
+
+[[bin]]
+name = "mev-engine"
+path = "src/main.rs"
+
+[dependencies]
+# ── Ethereum ──────────────────────────────────────────────────────────────────
+alloy-primitives = { version = "0.8", features = ["serde"] }
+alloy-sol-types = "0.8"
+
+# ── Async Runtime ─────────────────────────────────────────────────────────────
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+
+# ── HTTP ──────────────────────────────────────────────────────────────────────
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+dashmap = "6"
+parking_lot = "0.12"
+crossbeam-channel = "0.5"
+
+# ── Graph Algorithms ─────────────────────────────────────────────────────────
+petgraph = "0.6"
+
+# ── Serialization ─────────────────────────────────────────────────────────────
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# ── Observability ─────────────────────────────────────────────────────────────
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+
+# ── CLI & Config ──────────────────────────────────────────────────────────────
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+
+# ── Error Handling ────────────────────────────────────────────────────────────
+eyre = "0.6"
+color-eyre = "0.6"
+thiserror = "2"
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+chrono = "0.4"
+hex = "0.4"
+url = "2"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1"
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.dev]
+opt-level = 1
+
+[[bench]]
+name = "routing"
+harness = false
