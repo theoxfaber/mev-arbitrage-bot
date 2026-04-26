@@ -1,0 +1,395 @@
+    Checking mev-arbitrage-bot v3.0.0 (/Users/shankmukhkiransagar/.gemini/antigravity/scratch/mev-arbitrage-bot)
+error[E0432]: unresolved imports `crate::router::pool::exchange_rate_0_to_1`, `crate::router::pool::exchange_rate_1_to_0`
+  --> src/router/graph.rs:20:27
+   |
+20 | use crate::router::pool::{exchange_rate_0_to_1, exchange_rate_1_to_0};
+   |                           ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^ no `exchange_rate_1_to_0` in `router::pool`
+   |                           |
+   |                           no `exchange_rate_0_to_1` in `router::pool`
+
+error[E0432]: unresolved imports `crate::router::pool::is_zero_for_one`, `crate::router::pool::simulate_v2_swap`
+  --> src/simulator/evm.rs:16:27
+   |
+16 | use crate::router::pool::{is_zero_for_one, simulate_v2_swap};
+   |                           ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^ no `simulate_v2_swap` in `router::pool`
+   |                           |
+   |                           no `is_zero_for_one` in `router::pool`
+
+error[E0615]: attempted to take value of method `address` on type `PoolState`
+  --> src/router/graph.rs:57:32
+   |
+57 |         self.pools.insert(pool.address, pool);
+   |                                ^^^^^^^ method, not a field
+   |
+help: use parentheses to call the method
+   |
+57 |         self.pools.insert(pool.address(), pool);
+   |                                       ++
+
+error[E0609]: no field `token0` on type `&PoolState`
+  --> src/router/graph.rs:88:34
+   |
+88 |                 graph.entry(pool.token0).or_default().push(Edge {
+   |                                  ^^^^^^ unknown field
+
+error[E0609]: no field `token1` on type `&PoolState`
+  --> src/router/graph.rs:89:30
+   |
+89 |                     to: pool.token1,
+   |                              ^^^^^^ unknown field
+
+error[E0609]: no field `token1` on type `&PoolState`
+  --> src/router/graph.rs:97:34
+   |
+97 |                 graph.entry(pool.token1).or_default().push(Edge {
+   |                                  ^^^^^^ unknown field
+
+error[E0609]: no field `token0` on type `&PoolState`
+  --> src/router/graph.rs:98:30
+   |
+98 |                     to: pool.token0,
+   |                              ^^^^^^ unknown field
+
+error[E0609]: no field `token0` on type `PoolState`
+   --> src/router/graph.rs:130:44
+    |
+130 | ...                   e.pool.token0
+    |                              ^^^^^^ unknown field
+
+error[E0609]: no field `token1` on type `PoolState`
+   --> src/router/graph.rs:132:44
+    |
+132 | ...                   e.pool.token1
+    |                              ^^^^^^ unknown field
+
+error[E0609]: no field `token0` on type `PoolState`
+   --> src/router/graph.rs:289:28
+    |
+289 |                 first.pool.token0
+    |                            ^^^^^^ unknown field
+
+error[E0609]: no field `token1` on type `PoolState`
+   --> src/router/graph.rs:291:28
+    |
+291 |                 first.pool.token1
+    |                            ^^^^^^ unknown field
+
+error[E0027]: pattern does not mention fields `address`, `token0`, `token1`
+  --> src/router/pool.rs:28:12
+   |
+28 |     if let PoolState::UniswapV2 { reserve0, reserve1, fee_bps } = state {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing fields `address`, `token0`, `token1`
+   |
+help: include the missing fields in the pattern
+   |
+28 |     if let PoolState::UniswapV2 { reserve0, reserve1, fee_bps, address, token0, token1 } = state {
+   |                                                              +++++++++++++++++++++++++
+help: if you don't care about these missing fields, you can explicitly ignore them
+   |
+28 |     if let PoolState::UniswapV2 { reserve0, reserve1, fee_bps, address: _, token0: _, token1: _ } = state {
+   |                                                              ++++++++++++++++++++++++++++++++++
+help: or always ignore missing fields here
+   |
+28 |     if let PoolState::UniswapV2 { reserve0, reserve1, fee_bps, .. } = state {
+   |                                                              ++++
+
+error[E0027]: pattern does not mention fields `address`, `token0`, `token1`
+  --> src/router/pool.rs:72:12
+   |
+72 |       if let PoolState::UniswapV3 {
+   |  ____________^
+73 | |         sqrt_price_x96,
+74 | |         liquidity,
+75 | |         tick: _tick,
+...  |
+79 | |         ticks,
+80 | |     } = state
+   | |_____^ missing fields `address`, `token0`, `token1`
+   |
+help: include the missing fields in the pattern
+   |
+79 -         ticks,
+80 -     } = state
+79 +         ticks, address, token0, token1 } = state
+   |
+help: if you don't care about these missing fields, you can explicitly ignore them
+   |
+79 -         ticks,
+80 -     } = state
+79 +         ticks, address: _, token0: _, token1: _ } = state
+   |
+help: or always ignore missing fields here
+   |
+79 -         ticks,
+80 -     } = state
+79 +         ticks, .. } = state
+   |
+
+error[E0027]: pattern does not mention fields `address`, `tokens`
+   --> src/router/pool.rs:194:12
+    |
+194 |     if let PoolState::Curve { balances, amp, n_coins, fee_bps } = state {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing fields `address`, `tokens`
+    |
+help: include the missing fields in the pattern
+    |
+194 |     if let PoolState::Curve { balances, amp, n_coins, fee_bps, address, tokens } = state {
+    |                                                              +++++++++++++++++
+help: if you don't care about these missing fields, you can explicitly ignore them
+    |
+194 |     if let PoolState::Curve { balances, amp, n_coins, fee_bps, address: _, tokens: _ } = state {
+    |                                                              +++++++++++++++++++++++
+help: or always ignore missing fields here
+    |
+194 |     if let PoolState::Curve { balances, amp, n_coins, fee_bps, .. } = state {
+    |                                                              ++++
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:309:31
+    |
+309 |         let base = balance_in.to::<f64>() / denominator.to::<f64>();
+    |                               ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:309:57
+    |
+309 |         let base = balance_in.to::<f64>() / denominator.to::<f64>();
+    |                                                         ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:310:29
+    |
+310 |         let exp = weight_in.to::<f64>() / weight_out.to::<f64>();
+    |                             ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:310:54
+    |
+310 |         let exp = weight_in.to::<f64>() / weight_out.to::<f64>();
+    |                                                      ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:314:42
+    |
+314 |         let amount_out_f64 = balance_out.to::<f64>() * out_fraction;
+    |                                          ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0027]: pattern does not mention fields `address`, `token0`, `token1`
+   --> src/router/pool.rs:332:9
+    |
+332 |         PoolState::UniswapV2 { reserve0, reserve1, fee_bps } => {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing fields `address`, `token0`, `token1`
+    |
+help: include the missing fields in the pattern
+    |
+332 |         PoolState::UniswapV2 { reserve0, reserve1, fee_bps, address, token0, token1 } => {
+    |                                                           +++++++++++++++++++++++++
+help: if you don't care about these missing fields, you can explicitly ignore them
+    |
+332 |         PoolState::UniswapV2 { reserve0, reserve1, fee_bps, address: _, token0: _, token1: _ } => {
+    |                                                           ++++++++++++++++++++++++++++++++++
+help: or always ignore missing fields here
+    |
+332 |         PoolState::UniswapV2 { reserve0, reserve1, fee_bps, .. } => {
+    |                                                           ++++
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:341:41
+    |
+341 |             let sqrt_p = sqrt_price_x96.to::<f64>() / 2.0f64.powi(96);
+    |                                         ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:351:26
+    |
+351 |             (balances[1].to::<f64>() / balances[0].to::<f64>()) * fee_comp
+    |                          ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:351:52
+    |
+351 |             (balances[1].to::<f64>() / balances[0].to::<f64>()) * fee_comp
+    |                                                    ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:358:43
+    |
+358 |             let spot_price = (balances[1].to::<f64>() / weights[1].to::<f64>())
+    |                                           ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:358:68
+    |
+358 |             let spot_price = (balances[1].to::<f64>() / weights[1].to::<f64>())
+    |                                                                    ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:359:32
+    |
+359 |                 / (balances[0].to::<f64>() / weights[0].to::<f64>());
+    |                                ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0271]: type mismatch resolving `<f64 as TryFrom<&Uint<256, 4>>>::Error == FromUintError<f64>`
+   --> src/router/pool.rs:359:57
+    |
+359 |                 / (balances[0].to::<f64>() / weights[0].to::<f64>());
+    |                                                         ^^ expected `FromUintError<f64>`, found `Infallible`
+    |
+    = note: expected enum `FromUintError<f64>`
+               found enum `Infallible`
+    = note: required for `Uint<256, 4>` to implement `UintTryTo<f64>`
+note: required by a bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+   --> /Users/shankmukhkiransagar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruint-1.18.0/src/from.rs:246:15
+    |
+244 |     pub fn to<T>(&self) -> T
+    |            -- required by a bound in this associated function
+245 |     where
+246 |         Self: UintTryTo<T>,
+    |               ^^^^^^^^^^^^ required by this bound in `ruint::from::<impl Uint<BITS, LIMBS>>::to`
+
+error[E0615]: attempted to take value of method `address` on type `PoolState`
+   --> src/simulator/evm.rs:187:40
+    |
+187 |                 pool_address: leg.pool.address,
+    |                                        ^^^^^^^ method, not a field
+    |
+help: use parentheses to call the method
+    |
+187 |                 pool_address: leg.pool.address(),
+    |                                               ++
+
+Some errors have detailed explanations: E0027, E0271, E0432, E0609, E0615.
+For more information about an error, try `rustc --explain E0027`.
+error: could not compile `mev-arbitrage-bot` (lib) due to 28 previous errors

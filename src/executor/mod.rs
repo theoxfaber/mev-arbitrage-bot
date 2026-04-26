@@ -5,7 +5,7 @@ pub mod bundle;
 pub mod relayer;
 pub mod wallet;
 
-pub use bidding::BiddingStrategy;
+pub use bidding::BiddingEngine;
 pub use bundle::BundleBuilder;
 pub use relayer::FlashbotsRelayer;
 pub use wallet::WalletPool;

@@ -13,7 +13,7 @@
 //! This entire pipeline runs in < 1ms on modern hardware vs. 50-200ms for
 //! RPC-based simulation.
 
-use crate::router::pool::{is_zero_for_one, simulate_v2_swap};
+use crate::router::pool::{uniswap_v2_swap, is_zero_for_one};
 use crate::types::{ArbitrageRoute, SwapLeg};
 use alloy_primitives::{Address, U256};
 use eyre::Result;
@@ -156,7 +156,7 @@ impl EvmSimulator {
 
         for leg in legs {
             let z41 = is_zero_for_one(&leg.pool, leg.token_in);
-            let amount_out = simulate_v2_swap(&leg.pool, current_amount, z41);
+            let amount_out = uniswap_v2_swap(&leg.pool, current_amount, z41).map(|res| res.amount_out).unwrap_or(alloy_primitives::U256::ZERO);
             if amount_out.is_zero() {
                 return U256::ZERO;
             }
@@ -181,10 +181,10 @@ impl EvmSimulator {
 
         for leg in legs {
             let z41 = is_zero_for_one(&leg.pool, leg.token_in);
-            let amount_out = simulate_v2_swap(&leg.pool, current_amount, z41);
+            let amount_out = uniswap_v2_swap(&leg.pool, current_amount, z41).map(|res| res.amount_out).unwrap_or(alloy_primitives::U256::ZERO);
 
             result.push(OptimizedLeg {
-                pool_address: leg.pool.address,
+                pool_address: leg.pool.address(),
                 token_in: leg.token_in,
                 token_out: leg.token_out,
                 amount_in: current_amount,

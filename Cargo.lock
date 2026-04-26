@@ -24,6 +24,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
 dependencies = [
  "cfg-if",
+ "getrandom 0.3.4",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -786,6 +787,17 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "core_affinity"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a034b3a7b624016c6e13f5df875747cc25f884156aad2abd12b6c46797971342"
+dependencies = [
+ "libc",
+ "num_cpus",
+ "winapi",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -1968,11 +1980,13 @@ dependencies = [
 name = "mev-arbitrage-bot"
 version = "3.0.0"
 dependencies = [
+ "ahash",
  "alloy-primitives",
  "alloy-sol-types",
  "chrono",
  "clap",
  "color-eyre",
+ "core_affinity",
  "criterion",
  "crossbeam-channel",
  "dashmap",
@@ -1985,6 +1999,7 @@ dependencies = [
  "parking_lot",
  "petgraph",
  "proptest",
+ "rayon",
  "reqwest",
  "rusqlite",
  "serde",
@@ -1996,6 +2011,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "zerocopy",
 ]
 
 [[package]]

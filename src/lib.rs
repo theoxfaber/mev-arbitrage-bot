@@ -1,6 +1,8 @@
+pub mod chain;
 pub mod config;
 pub mod db;
 pub mod executor;
+pub mod latency;
 pub mod metrics;
 pub mod router;
 pub mod scanner;

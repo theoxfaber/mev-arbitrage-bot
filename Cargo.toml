@@ -65,6 +65,10 @@ thiserror = "2"
 chrono = "0.4"
 hex = "0.4"
 url = "2"
+rayon = "1.12.0"
+ahash = "0.8.12"
+core_affinity = "0.8.3"
+zerocopy = "0.8.48"
 
 [dev-dependencies]
 tokio-test = "0.4"

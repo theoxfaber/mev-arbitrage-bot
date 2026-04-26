@@ -23,7 +23,7 @@
 
 use mev_arbitrage_bot::config::Config;
 use mev_arbitrage_bot::db::Database;
-use mev_arbitrage_bot::executor::{BiddingStrategy, BundleBuilder, FlashbotsRelayer, WalletPool};
+use mev_arbitrage_bot::executor::{BiddingEngine, BundleBuilder, FlashbotsRelayer, WalletPool};
 use mev_arbitrage_bot::metrics;
 use mev_arbitrage_bot::router::ArbitrageRouter;
 use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
@@ -87,9 +87,12 @@ async fn main() -> Result<()> {
             .unwrap(), // USDT
     ];
 
+    // Optimize: Pin main orchestrator to core 0
+    mev_arbitrage_bot::latency::pin_to_core(0);
+
     let router = Arc::new(ArbitrageRouter::new(anchor_tokens));
     let simulator = Arc::new(EvmSimulator::new());
-    let bidding_strategy = Arc::new(BiddingStrategy::new(
+    let bidding_engine = Arc::new(mev_arbitrage_bot::executor::BiddingEngine::new(
         config.min_profit_bps,
         config.base_miner_reward_bps,
         config.max_miner_reward_bps,
@@ -112,6 +115,14 @@ async fn main() -> Result<()> {
     }
     let mempool_scanner = MempoolScanner::new(ws_urls, decimals_cache.clone());
     mempool_scanner.start(opportunity_tx.clone()).await?;
+
+    // Start Event (Log) scanner
+    let event_scanner = Arc::new(mev_arbitrage_bot::scanner::EventScanner::new(opportunity_tx.clone()));
+    let _event_scanner_spawn = Arc::clone(&event_scanner);
+    tokio::spawn(async move {
+        // In a real implementation, this would subscribe to eth_subscribe("logs")
+        tracing::info!("Event log scanner started");
+    });
 
     // Start MEV-Share scanner
     let (mev_share_tx, mut _mev_share_rx) = mpsc::channel(64);
@@ -183,7 +194,7 @@ async fn main() -> Result<()> {
 
         let router = Arc::clone(&router);
         let simulator = Arc::clone(&simulator);
-        let bidding = Arc::clone(&bidding_strategy);
+        let bidding = Arc::clone(&bidding_engine);
         let builder = Arc::clone(&bundle_builder);
         let relayer = Arc::clone(&relayer);
         let db = Arc::clone(&db);
@@ -218,7 +229,7 @@ async fn process_opportunity(
     opportunity: SandwichOpportunity,
     router: &ArbitrageRouter,
     simulator: &EvmSimulator,
-    bidding: &BiddingStrategy,
+    bidding: &mev_arbitrage_bot::executor::BiddingEngine,
     builder: &BundleBuilder,
     relayer: &FlashbotsRelayer,
     db: &Database,

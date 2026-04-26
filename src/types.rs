@@ -32,42 +32,92 @@ impl fmt::Display for PoolType {
     }
 }
 
+/// Tick information for UniswapV3 pools.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TickInfo {
+    pub liquidity_gross: u128,
+    pub liquidity_net: i128,
+    pub initialized: bool,
+}
+
+/// Result of a local swap simulation.
+#[derive(Debug, Clone, Default)]
+pub struct SwapResult {
+    pub amount_out: U256,
+    pub amount_in: U256,
+    pub fee_paid: U256,
+    pub ticks_crossed: u32,
+}
+
 /// On-chain state of a liquidity pool at a specific block.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PoolState {
-    pub address: Address,
-    pub pool_type: PoolType,
-    pub token0: Address,
-    pub token1: Address,
-    /// Reserve of token0 (V2) or virtual reserve derived from sqrtPriceX96 (V3).
-    pub reserve0: U256,
-    /// Reserve of token1 (V2) or virtual reserve derived from sqrtPriceX96 (V3).
-    pub reserve1: U256,
-    /// Fee in basis points × 100 (e.g., 3000 = 0.30%).
-    pub fee_bps_x100: u32,
-    /// V3-specific: sqrtPriceX96 from slot0().
-    pub sqrt_price_x96: Option<U256>,
-    /// V3-specific: active liquidity in the current tick range.
-    pub liquidity: Option<u128>,
-    /// V3-specific: current tick.
-    pub tick: Option<i32>,
-    /// Block number at which this state was fetched.
-    pub block_number: u64,
+pub enum PoolState {
+    UniswapV2 {
+        address: Address,
+        token0: Address,
+        token1: Address,
+        reserve0: u128,
+        reserve1: u128,
+        fee_bps: u32,
+    },
+    UniswapV3 {
+        address: Address,
+        token0: Address,
+        token1: Address,
+        sqrt_price_x96: U256,
+        liquidity: u128,
+        tick: i32,
+        tick_spacing: i32,
+        fee: u32,
+        tick_bitmap: std::collections::HashMap<i16, U256>,
+        ticks: std::collections::HashMap<i32, TickInfo>,
+    },
+    Curve {
+        address: Address,
+        tokens: Vec<Address>,
+        balances: Vec<U256>,
+        amp: U256,
+        n_coins: usize,
+        fee_bps: u32,
+    },
+    Balancer {
+        address: Address,
+        tokens: Vec<Address>,
+        balances: Vec<U256>,
+        weights: Vec<U256>,
+        fee_bps: u32,
+    },
 }
 
 impl PoolState {
-    /// Compute the price of token1 in terms of token0, scaled by 1e18.
-    pub fn price_1_in_0_scaled(&self) -> U256 {
-        if self.reserve0.is_zero() {
-            return U256::ZERO;
+    /// Return the address of the pool.
+    pub fn address(&self) -> Address {
+        match self {
+            Self::UniswapV2 { address, .. } => *address,
+            Self::UniswapV3 { address, .. } => *address,
+            Self::Curve { address, .. } => *address,
+            Self::Balancer { address, .. } => *address,
         }
-        let scale = U256::from(10u64.pow(18));
-        (self.reserve1 * scale) / self.reserve0
     }
 
-    /// Fee as a fraction in millionths (e.g., 3000 → 997000 multiplier).
-    pub fn fee_complement_millionths(&self) -> U256 {
-        U256::from(1_000_000u64 - u64::from(self.fee_bps_x100))
+    /// Helper to get the first token (for V2/V3 legacy compatibility).
+    pub fn token0(&self) -> Address {
+        match self {
+            Self::UniswapV2 { token0, .. } => *token0,
+            Self::UniswapV3 { token0, .. } => *token0,
+            Self::Curve { tokens, .. } => tokens[0],
+            Self::Balancer { tokens, .. } => tokens[0],
+        }
+    }
+
+    /// Helper to get the second token (for V2/V3 legacy compatibility).
+    pub fn token1(&self) -> Address {
+        match self {
+            Self::UniswapV2 { token1, .. } => *token1,
+            Self::UniswapV3 { token1, .. } => *token1,
+            Self::Curve { tokens, .. } => tokens[1],
+            Self::Balancer { tokens, .. } => tokens[1],
+        }
     }
 }
 
