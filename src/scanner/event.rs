@@ -17,9 +17,7 @@ pub struct EventScanner {
 
 impl EventScanner {
     pub fn new(opportunity_tx: mpsc::Sender<SandwichOpportunity>) -> Self {
-        Self {
-            opportunity_tx,
-        }
+        Self { opportunity_tx }
     }
 
     /// Process a new log entry.
