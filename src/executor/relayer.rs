@@ -1,16 +1,8 @@
-//! Multi-relay Flashbots bundle submission with reorg protection.
-//!
-//! Submits bundles to multiple relays and builders in parallel:
-//! - Flashbots relay (relay.flashbots.net)
-//! - Titan Builder
-//! - rsync Builder
-//! - Beaverbuild
-//!
-//! Each submission includes explicit reorg protection: we verify that the
-//! target transaction has not been canonically confirmed (>2 confirmations)
-//! before submitting, and abort if the target block has already passed.
+//! Multi-relay Flashbots bundle submission with secure authentication.
 
 use crate::types::{BundleOutcome, FlashbotsBundle};
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -32,37 +24,42 @@ const ESCALATION_INCREMENT_BPS: u32 = 1500;
 /// Flashbots multi-relay submitter.
 pub struct FlashbotsRelayer {
     client: Client,
-    auth_signer_key: String,
+    auth_signer: PrivateKeySigner,
 }
 
 impl FlashbotsRelayer {
-    pub fn new(auth_signer_key: String) -> Self {
-        Self {
+    pub fn new(auth_signer_key: String) -> eyre::Result<Self> {
+        let auth_signer = auth_signer_key.parse::<PrivateKeySigner>()?;
+        Ok(Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(5))
                 .build()
                 .expect("HTTP client"),
-            auth_signer_key,
-        }
+            auth_signer,
+        })
     }
 
     /// Submit a bundle to all relays in parallel with bid escalation.
-    ///
-    /// The bundle is submitted up to `MAX_ESCALATION_ATTEMPTS` times with
-    /// increasing miner rewards (15% increments) if initial submissions
-    /// fail to be included.
     pub async fn submit_bundle(&self, bundle: &FlashbotsBundle) -> Vec<(String, BundleOutcome)> {
         let mut results = Vec::new();
 
-        // Parallel submission to all relays
+        let bundle_json = self.build_bundle_json(bundle);
+        let auth_header = match self.build_auth_header(&bundle_json).await {
+            Ok(h) => h,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to build Flashbots auth header");
+                return vec![("all".to_string(), BundleOutcome::Aborted { reason: e.to_string() })];
+            }
+        };
+
         let mut handles = Vec::new();
 
         for &(name, url) in RELAYS {
             let client = self.client.clone();
-            let bundle_json = self.build_bundle_json(bundle);
+            let bundle_json = bundle_json.clone();
             let url = url.to_string();
             let name = name.to_string();
-            let auth_header = self.build_auth_header(&bundle_json);
+            let auth_header = auth_header.clone();
 
             handles.push(tokio::spawn(async move {
                 let result = Self::submit_to_relay(&client, &url, &bundle_json, &auth_header).await;
@@ -87,10 +84,15 @@ impl FlashbotsRelayer {
     }
 
     /// Submit with bid escalation: retry with 15% higher miner rewards.
-    pub async fn submit_with_escalation(
+    pub async fn submit_with_escalation<F, Fut>(
         &self,
         bundle: &mut FlashbotsBundle,
-    ) -> Vec<(String, BundleOutcome)> {
+        rebuild_callback: F,
+    ) -> Vec<(String, BundleOutcome)>
+    where
+        F: Fn(alloy_primitives::U256) -> Fut,
+        Fut: std::future::Future<Output = eyre::Result<FlashbotsBundle>>,
+    {
         let original_reward = bundle.miner_reward;
         let mut all_results = Vec::new();
 
@@ -100,13 +102,21 @@ impl FlashbotsRelayer {
                 let increment = (original_reward
                     * alloy_primitives::U256::from(ESCALATION_INCREMENT_BPS * attempt))
                     / alloy_primitives::U256::from(10_000u64);
-                bundle.miner_reward = original_reward + increment;
+                let new_reward = original_reward + increment;
 
                 tracing::info!(
                     attempt,
-                    new_reward = %bundle.miner_reward,
-                    "Escalating bid"
+                    new_reward = %new_reward,
+                    "Escalating bid (re-signing transaction)"
                 );
+
+                match rebuild_callback(new_reward).await {
+                    Ok(new_bundle) => *bundle = new_bundle,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to rebuild bundle for escalation");
+                        break;
+                    }
+                }
             }
 
             let results = self.submit_bundle(bundle).await;
@@ -155,7 +165,7 @@ impl FlashbotsRelayer {
                                     reason: error.to_string(),
                                 }
                             } else {
-                                BundleOutcome::Included { block: 0 } // Block set after confirmation
+                                BundleOutcome::Included { block: 0 }
                             }
                         }
                         Err(e) => BundleOutcome::RelayError {
@@ -194,9 +204,16 @@ impl FlashbotsRelayer {
         })
     }
 
-    fn build_auth_header(&self, _bundle_json: &Value) -> String {
-        // In production, this would sign the bundle hash with the auth key
-        // using EIP-191 personal_sign. Placeholder for now.
-        format!("{}:0x{}", self.auth_signer_key, "0".repeat(130))
+    /// Sign the bundle payload with the auth key using EIP-191.
+    async fn build_auth_header(&self, bundle_json: &Value) -> eyre::Result<String> {
+        let body = serde_json::to_string(bundle_json)?;
+        let hashed_body = alloy_primitives::keccak256(body.as_bytes());
+        let signature = self.auth_signer.sign_hash(&hashed_body).await?;
+
+        Ok(format!(
+            "{:?}:0x{}",
+            self.auth_signer.address(),
+            hex::encode(signature.as_bytes())
+        ))
     }
 }

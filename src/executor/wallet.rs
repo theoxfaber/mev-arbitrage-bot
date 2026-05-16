@@ -1,62 +1,53 @@
-//! Nonce-safe wallet pool with per-wallet locking.
-//!
-//! Manages a pool of executor wallets with per-wallet mutex locking for
-//! concurrent nonce management. Round-robin selection distributes load
-//! across wallets, while a background sync loop prevents nonce drift.
+//! Nonce-safe wallet pool with per-wallet locking and alloy-signer integration.
 
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
 use alloy_primitives::Address;
-use eyre::Result;
+use eyre::{Context, Result};
 use parking_lot::Mutex;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use alloy::network::Network;
+use alloy::transports::Transport;
+use alloy::providers::Provider;
 
-/// A managed wallet with safe nonce tracking.
-struct ManagedWallet {
-    /// The wallet's private key (hex-encoded).
-    private_key: String,
-    /// The wallet's address (derived from the private key).
-    address: Address,
-    /// Per-wallet lock for nonce management.
-    mutex: Mutex<()>,
-    /// Local nonce offset for txs dispatched but not yet propagated.
-    nonce_offset: AtomicU64,
+/// A managed wallet with safe nonce tracking and alloy-signer.
+pub struct ManagedWallet {
+    pub signer: PrivateKeySigner,
+    pub address: Address,
+    pub mutex: Mutex<()>,
+    pub next_nonce: AtomicU64,
 }
 
-/// Thread-safe pool of executor wallets.
 pub struct WalletPool {
     wallets: Vec<Arc<ManagedWallet>>,
     current_index: AtomicU64,
 }
 
 impl WalletPool {
-    /// Create a new wallet pool from a list of private keys.
     pub fn new(private_keys: &[String]) -> Result<Self> {
-        let wallets: Vec<Arc<ManagedWallet>> = private_keys
-            .iter()
-            .enumerate()
-            .map(|(i, pk)| {
-                // Derive address from private key
-                let pk_bytes = hex::decode(pk.strip_prefix("0x").unwrap_or(pk))
-                    .expect("Invalid private key hex");
+        let mut wallets = Vec::with_capacity(private_keys.len());
 
-                // Simple address derivation placeholder — in production, use
-                // alloy's signer to derive the address from the private key.
-                let address = Address::from_slice(&pk_bytes[..20].try_into().unwrap_or([0u8; 20]));
+        for (i, pk_hex) in private_keys.iter().enumerate() {
+            let signer = PrivateKeySigner::from_str(pk_hex)
+                .wrap_err_with(|| format!("Invalid private key at index {i}"))?;
 
-                tracing::info!(
-                    wallet_idx = i,
-                    address = %address,
-                    "Loaded executor wallet"
-                );
+            let address = signer.address();
 
-                Arc::new(ManagedWallet {
-                    private_key: pk.clone(),
-                    address,
-                    mutex: Mutex::new(()),
-                    nonce_offset: AtomicU64::new(0),
-                })
-            })
-            .collect();
+            tracing::info!(
+                wallet_idx = i,
+                address = %address,
+                "Loaded executor wallet"
+            );
+
+            wallets.push(Arc::new(ManagedWallet {
+                signer,
+                address,
+                mutex: Mutex::new(()),
+                next_nonce: AtomicU64::new(0),
+            }));
+        }
 
         Ok(Self {
             wallets,
@@ -64,55 +55,75 @@ impl WalletPool {
         })
     }
 
-    /// Execute a callback with a round-robin selected wallet while holding
-    /// its nonce lock.
-    pub async fn execute_with_wallet<F, T>(&self, callback: F) -> Result<T>
+    pub async fn execute_with_wallet<F, T_Ret>(&self, callback: F) -> Result<T_Ret>
     where
-        F: FnOnce(&str, Address, u64) -> Result<T>,
+        F: FnOnce(&PrivateKeySigner, Address, u64) -> Result<T_Ret>,
     {
-        // Round-robin selection
         let idx = self.current_index.fetch_add(1, Ordering::Relaxed) as usize % self.wallets.len();
         let wallet = &self.wallets[idx];
 
-        // Acquire per-wallet lock
         let _guard = wallet.mutex.lock();
+        let nonce = wallet.next_nonce.load(Ordering::Relaxed);
 
-        let nonce_offset = wallet.nonce_offset.load(Ordering::Relaxed);
-
-        match callback(&wallet.private_key, wallet.address, nonce_offset) {
+        match callback(&wallet.signer, wallet.address, nonce) {
             Ok(result) => {
-                wallet.nonce_offset.fetch_add(1, Ordering::Relaxed);
+                wallet.next_nonce.fetch_add(1, Ordering::Relaxed);
                 Ok(result)
             }
-            Err(e) => {
-                // Reset offset on failure to prevent nonce gaps
-                wallet.nonce_offset.store(0, Ordering::Relaxed);
-                Err(e)
-            }
+            Err(e) => Err(e),
         }
     }
 
-    /// Background nonce synchronization — reconciles local offsets with
-    /// on-chain confirmed nonces. Call this every ~30 seconds.
-    pub fn sync_nonces(&self) {
+    pub async fn sync_nonces<T, N, P>(&self, provider: &P)
+    where
+        T: Transport + Clone,
+        N: Network,
+        P: Provider<T, N>,
+    {
         for (i, wallet) in self.wallets.iter().enumerate() {
-            // Skip if wallet is actively locked
-            if wallet.mutex.try_lock().is_some() {
-                // In production, query the RPC for pending vs. confirmed nonce counts.
-                // If pending == confirmed, reset the local offset.
-                wallet.nonce_offset.store(0, Ordering::Relaxed);
-                crate::metrics::record_nonce_sync(i);
+            let (current, addr) = {
+                if let Some(_guard) = wallet.mutex.try_lock() {
+                    (wallet.next_nonce.load(Ordering::Relaxed), wallet.address)
+                } else {
+                    continue;
+                }
+            };
+
+            match provider.get_transaction_count(addr).await {
+                Ok(nonce) => {
+                    if nonce > current {
+                        tracing::info!(
+                            wallet_idx = i,
+                            address = %addr,
+                            old_nonce = current,
+                            new_nonce = nonce,
+                            "Synced nonce from chain"
+                        );
+                        wallet.next_nonce.store(nonce, Ordering::Relaxed);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        wallet_idx = i,
+                        address = %addr,
+                        error = %e,
+                        "Failed to sync nonce from chain"
+                    );
+                }
             }
+            crate::metrics::record_nonce_sync(i);
         }
     }
 
-    /// Number of wallets in the pool.
     pub fn count(&self) -> usize {
         self.wallets.len()
     }
 
-    /// Get all wallet addresses.
     pub fn addresses(&self) -> Vec<Address> {
         self.wallets.iter().map(|w| w.address).collect()
+    }
+
+    pub fn wallets(&self) -> &[Arc<ManagedWallet>] {
+        &self.wallets
     }
 }

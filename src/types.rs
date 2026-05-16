@@ -1,16 +1,20 @@
 //! Core domain types for the MEV arbitrage engine.
-//!
-//! All monetary values use `U256` to prevent precision loss. Addresses use
-//! `Address` from alloy-primitives. No floating-point is used anywhere in the
-//! hot path — all fraction math uses basis-point integers.
 
 use alloy_primitives::{Address, Bytes, TxHash, U256};
+use alloy_sol_types::sol;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-// ─── Pool Types ──────────────────────────────────────────────────────────────
+sol! {
+    struct Action {
+        address target;
+        uint256 value;
+        bytes data;
+        address approveToken;
+        uint256 approveAmount;
+    }
+}
 
-/// Represents the type of DEX pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PoolType {
     UniswapV2,
@@ -32,7 +36,6 @@ impl fmt::Display for PoolType {
     }
 }
 
-/// Tick information for UniswapV3 pools.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TickInfo {
     pub liquidity_gross: u128,
@@ -40,7 +43,6 @@ pub struct TickInfo {
     pub initialized: bool,
 }
 
-/// Result of a local swap simulation.
 #[derive(Debug, Clone, Default)]
 pub struct SwapResult {
     pub amount_out: U256,
@@ -49,7 +51,6 @@ pub struct SwapResult {
     pub ticks_crossed: u32,
 }
 
-/// On-chain state of a liquidity pool at a specific block.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PoolState {
     UniswapV2 {
@@ -90,7 +91,6 @@ pub enum PoolState {
 }
 
 impl PoolState {
-    /// Return the address of the pool.
     pub fn address(&self) -> Address {
         match self {
             Self::UniswapV2 { address, .. } => *address,
@@ -100,7 +100,6 @@ impl PoolState {
         }
     }
 
-    /// Helper to get the first token (for V2/V3 legacy compatibility).
     pub fn token0(&self) -> Address {
         match self {
             Self::UniswapV2 { token0, .. } => *token0,
@@ -110,7 +109,6 @@ impl PoolState {
         }
     }
 
-    /// Helper to get the second token (for V2/V3 legacy compatibility).
     pub fn token1(&self) -> Address {
         match self {
             Self::UniswapV2 { token1, .. } => *token1,
@@ -121,9 +119,6 @@ impl PoolState {
     }
 }
 
-// ─── Token Metadata ──────────────────────────────────────────────────────────
-
-/// Cached ERC-20 token metadata for decimal-aware calculations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenMeta {
     pub address: Address,
@@ -131,9 +126,6 @@ pub struct TokenMeta {
     pub decimals: u8,
 }
 
-// ─── Arbitrage Route ─────────────────────────────────────────────────────────
-
-/// A single swap leg in a multi-hop arbitrage route.
 #[derive(Debug, Clone)]
 pub struct SwapLeg {
     pub pool: PoolState,
@@ -143,18 +135,21 @@ pub struct SwapLeg {
     pub expected_amount_out: U256,
 }
 
-/// A complete arbitrage route: a cycle through 2+ pools that returns to the starting token.
+#[derive(Debug, Clone)]
+pub struct OptimizedLeg {
+    pub pool_address: Address,
+    pub token_in: Address,
+    pub token_out: Address,
+    pub amount_in: U256,
+    pub amount_out: U256,
+}
+
 #[derive(Debug, Clone)]
 pub struct ArbitrageRoute {
-    /// The token we borrow via flash loan and must return.
     pub base_token: Address,
-    /// Ordered sequence of swap legs forming a cycle.
     pub legs: Vec<SwapLeg>,
-    /// Expected gross profit in base_token units (before gas + miner reward).
     pub expected_gross_profit: U256,
-    /// Optimal flash loan size determined by binary search.
     pub optimal_loan_size: U256,
-    /// Combined confidence score [0.0, 1.0] from volatility model.
     pub confidence: f64,
 }
 
@@ -164,34 +159,15 @@ impl ArbitrageRoute {
     }
 }
 
-// ─── Bundle & Execution ──────────────────────────────────────────────────────
-
-/// An action to execute inside the ArbitrageExecutor contract.
-#[derive(Debug, Clone)]
-pub struct ExecutorAction {
-    pub target: Address,
-    pub value: U256,
-    pub data: Vec<u8>,
-    pub approve_token: Address,
-    pub approve_amount: U256,
-}
-
-/// A Flashbots bundle ready for relay submission.
 #[derive(Debug, Clone)]
 pub struct FlashbotsBundle {
-    /// The target (victim) transaction to backrun.
     pub target_tx_hash: TxHash,
-    /// Raw signed transactions in bundle order: [target_tx, arb_tx].
     pub signed_txs: Vec<Bytes>,
-    /// Target block number for inclusion.
     pub target_block: u64,
-    /// Miner reward (block.coinbase payment) in wei.
     pub miner_reward: U256,
-    /// Expected net profit after miner reward and gas.
     pub expected_net_profit: U256,
 }
 
-/// Outcome of a bundle submission attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BundleOutcome {
     Included { block: u64 },
@@ -215,22 +191,13 @@ impl fmt::Display for BundleOutcome {
     }
 }
 
-// ─── Bidding ─────────────────────────────────────────────────────────────────
-
-/// Result of the dynamic bidding computation.
 #[derive(Debug, Clone)]
 pub struct BiddingDecision {
-    /// ETH to pay block.coinbase.
     pub miner_reward: U256,
-    /// Minimum acceptable profit (abort if below).
     pub min_profit: U256,
-    /// The gas-pressure-adjusted miner fraction, for logging.
     pub effective_miner_fraction_bps: u32,
 }
 
-// ─── Opportunity ─────────────────────────────────────────────────────────────
-
-/// Decoded information about a high-slippage swap detected in the mempool.
 #[derive(Debug, Clone)]
 pub struct SandwichOpportunity {
     pub tx_hash: TxHash,
@@ -239,16 +206,10 @@ pub struct SandwichOpportunity {
     pub token_out: Address,
     pub amount_in: U256,
     pub min_amount_out: U256,
-    /// Slippage tolerance in basis points (e.g., 500 = 5%).
     pub slippage_bps: u32,
-    /// Whether slippage is high enough to be actionable.
     pub is_actionable: bool,
 }
 
-// ─── MEV-Share ───────────────────────────────────────────────────────────────
-
-/// A hint from the Flashbots MEV-Share event stream.
-#[derive(Debug, Clone)]
 pub struct MevShareHint {
     pub hash: TxHash,
     pub to: Option<Address>,
@@ -258,17 +219,12 @@ pub struct MevShareHint {
     pub mev_gas_price: Option<U256>,
 }
 
-/// A log entry from an MEV-Share hint.
-#[derive(Debug, Clone)]
 pub struct MevShareLog {
     pub address: Address,
     pub topics: Vec<[u8; 32]>,
     pub data: Vec<u8>,
 }
 
-// ─── Metrics Snapshot ────────────────────────────────────────────────────────
-
-/// Point-in-time snapshot of engine metrics for health reporting.
 #[derive(Debug, Clone, Default)]
 pub struct EngineMetrics {
     pub txs_scanned: u64,
@@ -279,4 +235,10 @@ pub struct EngineMetrics {
     pub total_gas_spent_wei: U256,
     pub rolling_pnl_wei: i128,
     pub uptime_seconds: u64,
+}
+
+pub struct PendingTx {
+    pub hash: TxHash,
+    pub to: Option<Address>,
+    pub input: Bytes,
 }

@@ -107,18 +107,20 @@ impl SwapDecoder {
         tx_hash: TxHash,
         data: &Bytes,
     ) -> Option<SandwichOpportunity> {
-        // Manual ABI decoding — each field is 32 bytes, offset by 4 (selector)
-        if data.len() < 4 + 8 * 32 {
+        // Manual ABI decoding
+        // exactInputSingle(struct Params) -> selector (4) + offset to struct (32) + struct data
+        if data.len() < 4 + 32 + 8 * 32 {
             return None;
         }
 
-        let offset = 4;
-        let token_in = Address::from_slice(&data[offset + 12..offset + 32]);
-        let token_out = Address::from_slice(&data[offset + 32 + 12..offset + 64]);
+        let struct_offset = 4 + 32; // Skip selector and the pointer to the struct
+
+        let token_in = Address::from_slice(&data[struct_offset + 12..struct_offset + 32]);
+        let token_out = Address::from_slice(&data[struct_offset + 32 + 12..struct_offset + 64]);
         // fee at offset + 64..offset + 96
         // recipient at offset + 96..offset + 128
-        let amount_in = U256::from_be_slice(&data[offset + 128..offset + 160]);
-        let amount_out_min = U256::from_be_slice(&data[offset + 160..offset + 192]);
+        let amount_in = U256::from_be_slice(&data[struct_offset + 128..struct_offset + 160]);
+        let amount_out_min = U256::from_be_slice(&data[struct_offset + 160..struct_offset + 192]);
 
         let slippage_bps =
             self.compute_slippage_bps(token_in, token_out, amount_in, amount_out_min);
