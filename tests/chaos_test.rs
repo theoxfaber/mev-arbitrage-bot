@@ -39,9 +39,12 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
                 // Construct a mock exactInputSingle calldata to trigger the decoder occasionally
                 // (every 1000th tx is a valid UniswapV3 swap)
                 let input = if i % 1000 == 0 {
-                    // Valid 4-byte selector + 224 bytes of data
+                    // Valid 4-byte selector + 32 byte offset + struct data (8 * 32 bytes)
                     let mut data = vec![0x41, 0x4b, 0xf3, 0x89];
-                    data.resize(4 + 8 * 32, 0);
+                    data.resize(4 + 32 + 8 * 32, 0);
+                    // Set amount_in (at struct_offset + 128) to something non-zero to pass high slippage check
+                    let amount_in_offset = 4 + 32 + 128;
+                    data[amount_in_offset + 31] = 0xFF;
                     Bytes::from(data)
                 } else {
                     Bytes::from(vec![0x00; 10]) // Invalid / ignored

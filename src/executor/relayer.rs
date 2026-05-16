@@ -84,6 +84,11 @@ impl FlashbotsRelayer {
     }
 
     /// Submit with bid escalation: retry with 15% higher miner rewards.
+    ///
+    /// WARNING: Bid escalation currently requires rebuilding and re-signing
+    /// the transaction to update the `minerReward` in the contract call.
+    /// The current implementation only updates the struct field, which is
+    /// insufficient for on-chain enforcement.
     pub async fn submit_with_escalation(
         &self,
         bundle: &mut FlashbotsBundle,
@@ -102,7 +107,7 @@ impl FlashbotsRelayer {
                 tracing::info!(
                     attempt,
                     new_reward = %bundle.miner_reward,
-                    "Escalating bid"
+                    "Escalating bid (Warning: Re-signing required but not implemented in relayer)"
                 );
             }
 

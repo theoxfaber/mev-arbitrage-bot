@@ -50,10 +50,30 @@ impl BundleBuilder {
         base_fee: U256,
     ) -> Result<FlashbotsBundle> {
         let actions: Vec<Action> = route.legs.iter().enumerate().map(|(i, leg)| {
+            let data = match leg.pool {
+                crate::types::PoolState::UniswapV2 { .. } => {
+                    // swap(uint256,uint256,address,bytes)
+                    let (amt0, amt1) = if leg.token_in < leg.token_out {
+                        (U256::ZERO, leg.expected_amount_out)
+                    } else {
+                        (leg.expected_amount_out, U256::ZERO)
+                    };
+                    let selector = hex::decode("022c0d9f").unwrap();
+                    let mut payload = selector;
+                    payload.extend(alloy_primitives::FixedBytes::<32>::from(amt0));
+                    payload.extend(alloy_primitives::FixedBytes::<32>::from(amt1));
+                    payload.extend(Address::repeat_byte(0xEE).into_word()); // Placeholder
+                    payload.extend(alloy_primitives::FixedBytes::<32>::from(U256::from(128))); // Offset
+                    payload.extend(alloy_primitives::FixedBytes::<32>::from(U256::ZERO)); // Data len
+                    payload
+                }
+                _ => vec![],
+            };
+
             Action {
                 target: leg.pool.address(),
                 value: U256::ZERO,
-                data: Bytes::from(vec![]),
+                data: Bytes::from(data),
                 approveToken: leg.token_in,
                 approveAmount: if i == 0 { sim.optimal_loan_size } else { U256::ZERO },
             }
