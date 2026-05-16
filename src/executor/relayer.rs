@@ -195,8 +195,9 @@ impl FlashbotsRelayer {
     }
 
     fn build_auth_header(&self, _bundle_json: &Value) -> String {
-        // In production, this would sign the bundle hash with the auth key
-        // using EIP-191 personal_sign. Placeholder for now.
-        format!("{}:0x{}", self.auth_signer_key, "0".repeat(130))
+        // SECURITY FIX: Removed raw private key leakage from header.
+        // In production, this MUST sign the bundle hash with the auth key
+        // using EIP-191 personal_sign.
+        format!("REDACTED_AUTH_SIGNER:0x{}", "0".repeat(130))
     }
 }

@@ -35,18 +35,16 @@ impl WalletPool {
             .iter()
             .enumerate()
             .map(|(i, pk)| {
-                // Derive address from private key
-                let pk_bytes = hex::decode(pk.strip_prefix("0x").unwrap_or(pk))
-                    .expect("Invalid private key hex");
+                // SECURITY WARNING: This bot currently uses a placeholder for address derivation.
+                // In production, you MUST use a proper library like `alloy-signer` to derive
+                // the address from the private key.
 
-                // Simple address derivation placeholder — in production, use
-                // alloy's signer to derive the address from the private key.
-                let address = Address::from_slice(&pk_bytes[..20].try_into().unwrap_or([0u8; 20]));
+                // Placeholder: Use a zero address to prevent reporting incorrect derived addresses.
+                let address = Address::ZERO;
 
-                tracing::info!(
+                tracing::warn!(
                     wallet_idx = i,
-                    address = %address,
-                    "Loaded executor wallet"
+                    "Loaded executor wallet (ADDRESS DERIVATION IS PLACEHOLDER)"
                 );
 
                 Arc::new(ManagedWallet {

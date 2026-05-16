@@ -33,9 +33,10 @@ impl BundleBuilder {
         // - approveAmount: the input amount
         let mut calldata_parts: Vec<u8> = Vec::new();
 
-        // ABI-encode executeArbitrage(asset, amount, minProfit, minerReward, actions[])
-        // Function selector for executeArbitrage
-        calldata_parts.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // placeholder selector
+        // ABI-encode executeArbitrage(address,uint256,uint256,uint256,Action[])
+        // Function selector for executeArbitrage(address,uint256,uint256,uint256,(address,uint256,bytes,address,uint256)[])
+        // Note: This is still a partial implementation for demonstration.
+        calldata_parts.extend_from_slice(&[0x54, 0xc1, 0x3d, 0x76]);
 
         // Encode asset (base token)
         let mut asset_bytes = [0u8; 32];
