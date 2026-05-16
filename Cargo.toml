@@ -21,8 +21,10 @@ path = "src/main.rs"
 
 [dependencies]
 # ── Ethereum ──────────────────────────────────────────────────────────────────
+alloy = { version = "0.8", features = ["full"] }
 alloy-primitives = { version = "0.8", features = ["serde"] }
 alloy-sol-types = "0.8"
+revm = { version = "18", features = ["std", "serde"] }
 
 # ── Async Runtime ─────────────────────────────────────────────────────────────
 tokio = { version = "1", features = ["full"] }

@@ -1,7 +1,6 @@
 use alloy_primitives::{Address, Bytes, TxHash};
 use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
-use mev_arbitrage_bot::scanner::mempool::PendingTx;
-use mev_arbitrage_bot::scanner::MempoolScanner;
+use mev_arbitrage_bot::scanner::mempool::{PendingTx, MempoolScanner};
 use mev_arbitrage_bot::types::SandwichOpportunity;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -78,10 +77,6 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
     }
 
     // Out of 10,000 unique tx hashes, 10 are valid swaps (0, 1000, 2000... 9000).
-    // The decoder will parse them, but with all 0 bytes, slippage is 100%,
-    // so `is_actionable` will be true.
-    // Because of deduplication, we should get exactly 10 opportunities out,
-    // not 30 (since 3 RPCs raced to deliver them).
     assert_eq!(
         opportunities, 10,
         "Deduplication failed to prevent duplicate opportunities"

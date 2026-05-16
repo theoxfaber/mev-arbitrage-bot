@@ -1,13 +1,34 @@
-//! Flashbots bundle construction from simulation results.
+//! Flashbots bundle construction with EIP-1559 transaction signing.
 
 use crate::simulator::evm::SimulationResult;
 use crate::types::{ArbitrageRoute, FlashbotsBundle};
+use alloy::network::{EthereumWallet, TransactionBuilder};
+use alloy::rpc::types::eth::TransactionRequest;
 use alloy_primitives::{Address, Bytes, U256};
+use alloy_sol_types::{SolCall, sol};
+use eyre::Result;
 
 /// Builds Flashbots-compatible bundles from simulation results.
 pub struct BundleBuilder {
-    #[allow(dead_code)]
     executor_contract: Address,
+}
+
+sol! {
+    struct Action {
+        address target;
+        uint256 value;
+        bytes data;
+        address approveToken;
+        uint256 approveAmount;
+    }
+
+    function executeArbitrage(
+        address asset,
+        uint256 amount,
+        uint256 minProfit,
+        uint256 minerReward,
+        Action[] actions
+    );
 }
 
 impl BundleBuilder {
@@ -15,8 +36,7 @@ impl BundleBuilder {
         Self { executor_contract }
     }
 
-    /// Construct a Flashbots bundle from a simulated route.
-    pub fn build(
+    pub async fn build_and_sign(
         &self,
         route: &ArbitrageRoute,
         sim: &SimulationResult,
@@ -24,33 +44,45 @@ impl BundleBuilder {
         target_block: u64,
         miner_reward: U256,
         min_profit: U256,
-    ) -> FlashbotsBundle {
-        // Build the action sequence for the on-chain executor
-        // Each leg becomes an executeArbitrage Action with:
-        // - target: swap router address
-        // - data: encoded swap calldata
-        // - approveToken: the input token for this leg
-        // - approveAmount: the input amount
-        let mut calldata_parts: Vec<u8> = Vec::new();
+        wallet: &EthereumWallet,
+        nonce: u64,
+        chain_id: u64,
+        base_fee: U256,
+    ) -> Result<FlashbotsBundle> {
+        let actions: Vec<Action> = route.legs.iter().enumerate().map(|(i, leg)| {
+            Action {
+                target: leg.pool.address(),
+                value: U256::ZERO,
+                data: Bytes::from(vec![]),
+                approveToken: leg.token_in,
+                approveAmount: if i == 0 { sim.optimal_loan_size } else { U256::ZERO },
+            }
+        }).collect();
 
-        // ABI-encode executeArbitrage(address,uint256,uint256,uint256,Action[])
-        // Function selector for executeArbitrage(address,uint256,uint256,uint256,(address,uint256,bytes,address,uint256)[])
-        // Note: This is still a partial implementation for demonstration.
-        calldata_parts.extend_from_slice(&[0x54, 0xc1, 0x3d, 0x76]);
+        let call = executeArbitrageCall {
+            asset: route.base_token,
+            amount: sim.optimal_loan_size,
+            minProfit: min_profit,
+            minerReward: miner_reward,
+            actions,
+        };
 
-        // Encode asset (base token)
-        let mut asset_bytes = [0u8; 32];
-        asset_bytes[12..32].copy_from_slice(route.base_token.as_slice());
-        calldata_parts.extend_from_slice(&asset_bytes);
+        let calldata = call.abi_encode();
 
-        // Encode amount (optimal loan size)
-        calldata_parts.extend_from_slice(&sim.optimal_loan_size.to_be_bytes::<32>());
+        let max_priority_fee = 0u128;
+        let max_fee = (base_fee * U256::from(2)).to::<u128>();
 
-        // Encode minProfit
-        calldata_parts.extend_from_slice(&min_profit.to_be_bytes::<32>());
+        let tx = TransactionRequest::default()
+            .with_to(self.executor_contract)
+            .with_input(calldata)
+            .with_nonce(nonce)
+            .with_chain_id(chain_id)
+            .with_gas_limit(sim.gas_used + 50_000)
+            .with_max_fee_per_gas(max_fee)
+            .with_max_priority_fee_per_gas(max_priority_fee);
 
-        // Encode minerReward
-        calldata_parts.extend_from_slice(&miner_reward.to_be_bytes::<32>());
+        let signed = tx.build(wallet).await?;
+        let signed_tx_bytes = alloy::eips::eip2718::Encodable2718::encoded_2718(&signed);
 
         let expected_net = if sim.gross_profit > miner_reward {
             sim.gross_profit - miner_reward
@@ -58,12 +90,12 @@ impl BundleBuilder {
             U256::ZERO
         };
 
-        FlashbotsBundle {
+        Ok(FlashbotsBundle {
             target_tx_hash,
-            signed_txs: vec![Bytes::from(calldata_parts)],
+            signed_txs: vec![Bytes::from(signed_tx_bytes)],
             target_block,
             miner_reward,
             expected_net_profit: expected_net,
-        }
+        })
     }
 }
