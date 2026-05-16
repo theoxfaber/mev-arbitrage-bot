@@ -1,10 +1,12 @@
 use alloy_primitives::{Address, U256};
+use std::sync::Arc;
 use mev_arbitrage_bot::simulator::EvmSimulator;
 use mev_arbitrage_bot::types::{ArbitrageRoute, PoolState, SwapLeg};
 use std::collections::HashMap;
+use alloy::providers::ProviderBuilder;
 
-#[test]
-fn test_evm_simulator_binary_search() {
+#[tokio::test]
+async fn test_evm_simulator_binary_search() {
     let simulator = EvmSimulator::new();
 
     let weth: Address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
@@ -36,7 +38,7 @@ fn test_evm_simulator_binary_search() {
             .unwrap(),
         token0: usdc,
         token1: pepe,
-        sqrt_price_x96: U256::from(1) << 96, // Price = 1 for simplicity
+        sqrt_price_x96: U256::from(1) << 96,
         liquidity: 100_000_000_000 * 10u128.pow(18),
         tick: 0,
         tick_spacing: 60,
@@ -82,13 +84,16 @@ fn test_evm_simulator_binary_search() {
                 expected_amount_out: U256::ZERO,
             },
         ],
-        expected_gross_profit: U256::ZERO,
-        optimal_loan_size: U256::ZERO,
+        expected_gross_profit: U256::from(1000u64),
+        optimal_loan_size: U256::from(10u128.pow(18)),
         confidence: 0.95,
     };
 
+    let provider = Arc::new(ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap()));
+
     let result = simulator
-        .simulate(&route)
+        .simulate(&route, provider, Address::ZERO, alloy_primitives::Bytes::default())
+        .await
         .expect("Simulation should succeed");
 
     assert!(
