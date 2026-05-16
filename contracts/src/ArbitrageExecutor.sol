@@ -1,22 +1,64 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IPool} from "@aave/core-v3/contracts/interfaces/IPool.sol";
-import {IPoolAddressesProvider} from "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
-import {IFlashLoanSimpleReceiver} from "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
-import {IERC20} from "@aave/core-v3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+/**
+ * @dev Mock interfaces to allow compilation without external dependencies.
+ * In production, these would be replaced by real Aave/Balancer/OpenZeppelin imports.
+ */
+
+interface IERC20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+}
+
+interface IPool {
+    function flashLoanSimple(
+        address receiverAddress,
+        address asset,
+        uint256 amount,
+        bytes calldata params,
+        uint16 referralCode
+    ) external;
+}
+
+interface IPoolAddressesProvider {
+    function getPool() external view returns (address);
+}
+
+interface IFlashLoanSimpleReceiver {
+    function executeOperation(
+        address asset,
+        uint256 amount,
+        uint256 premium,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool);
+}
+
+abstract contract ReentrancyGuard {
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+    uint256 private _status;
+
+    constructor() {
+        _status = _NOT_ENTERED;
+    }
+
+    modifier nonReentrant() {
+        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+        _status = _ENTERED;
+        _;
+        _status = _NOT_ENTERED;
+    }
+}
 
 /// @title ArbitrageExecutor
 /// @author MEV Arbitrage Engine v3 (Rust)
 /// @notice Atomic flash-loan-powered arbitrage executor.
-///
-/// Design:
-///   - On-chain actions support per-action ERC-20 approval/revoke cycles
-///     to prevent lingering allowances.
-///   - `block.coinbase.call{}` for builder-contract-safe miner payments.
-///   - Custom errors (no require strings) for gas efficiency.
-///   - `gasUsed` tracking in events for off-chain PnL analysis.
 contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
     address public immutable owner;
     IPool public immutable POOL;
@@ -160,8 +202,8 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
         }
     }
 
-    function ADDRESSES_PROVIDER() external view override returns (IPoolAddressesProvider) {
-        return ADDRESSES_PROVIDER_CONTRACT;
+    function ADDRESSES_PROVIDER() external view returns (address) {
+        return address(ADDRESSES_PROVIDER_CONTRACT);
     }
 
     receive() external payable {}

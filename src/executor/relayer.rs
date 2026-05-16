@@ -84,15 +84,15 @@ impl FlashbotsRelayer {
     }
 
     /// Submit with bid escalation: retry with 15% higher miner rewards.
-    ///
-    /// WARNING: Bid escalation currently requires rebuilding and re-signing
-    /// the transaction to update the `minerReward` in the contract call.
-    /// The current implementation only updates the struct field, which is
-    /// insufficient for on-chain enforcement.
-    pub async fn submit_with_escalation(
+    pub async fn submit_with_escalation<F, Fut>(
         &self,
         bundle: &mut FlashbotsBundle,
-    ) -> Vec<(String, BundleOutcome)> {
+        rebuild_callback: F,
+    ) -> Vec<(String, BundleOutcome)>
+    where
+        F: Fn(alloy_primitives::U256) -> Fut,
+        Fut: std::future::Future<Output = eyre::Result<FlashbotsBundle>>,
+    {
         let original_reward = bundle.miner_reward;
         let mut all_results = Vec::new();
 
@@ -102,13 +102,21 @@ impl FlashbotsRelayer {
                 let increment = (original_reward
                     * alloy_primitives::U256::from(ESCALATION_INCREMENT_BPS * attempt))
                     / alloy_primitives::U256::from(10_000u64);
-                bundle.miner_reward = original_reward + increment;
+                let new_reward = original_reward + increment;
 
                 tracing::info!(
                     attempt,
-                    new_reward = %bundle.miner_reward,
-                    "Escalating bid (Warning: Re-signing required but not implemented in relayer)"
+                    new_reward = %new_reward,
+                    "Escalating bid (re-signing transaction)"
                 );
+
+                match rebuild_callback(new_reward).await {
+                    Ok(new_bundle) => *bundle = new_bundle,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to rebuild bundle for escalation");
+                        break;
+                    }
+                }
             }
 
             let results = self.submit_bundle(bundle).await;

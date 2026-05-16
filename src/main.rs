@@ -122,7 +122,7 @@ async fn main() -> Result<()> {
                 &relayer,
                 &db,
                 &wallet_pool,
-                &*provider,
+                provider,
                 dry_run,
             )
             .await
@@ -145,7 +145,7 @@ async fn process_opportunity(
     relayer: &FlashbotsRelayer,
     db: &Database,
     wallet_pool: &WalletPool,
-    provider: &RootProvider<Http<Client>>,
+    provider: Arc<RootProvider<Http<Client>>>,
     dry_run: bool,
 ) -> Result<()>
 {
@@ -154,7 +154,8 @@ async fn process_opportunity(
     let best_route = &routes[0];
 
     // Simulate
-    let sim_result = simulator.simulate::<Http<Client>, Ethereum, RootProvider<Http<Client>>>(best_route, provider, Address::ZERO).await?;
+    // NOTE: In production, we must generate real calldata here.
+    let sim_result = simulator.simulate::<Http<Client>, Ethereum, RootProvider<Http<Client>>>(best_route, provider, Address::ZERO, alloy_primitives::Bytes::default()).await?;
     if sim_result.gross_profit.is_zero() { return Ok(()); }
 
     // Bidding
@@ -184,7 +185,35 @@ async fn process_opportunity(
     if dry_run { return Ok(()); }
 
     let mut bundle_to_submit = signed_bundle;
-    let _results = relayer.submit_with_escalation(&mut bundle_to_submit).await;
+
+    let route_clone = best_route.clone();
+    let sim_result_clone = sim_result.clone();
+    let wallet_clone = wallet.clone();
+    let builder_clone = builder.clone();
+    let tx_hash = opportunity.tx_hash;
+    let nonce_clone = nonce;
+
+    let _results = relayer.submit_with_escalation(&mut bundle_to_submit, |new_reward| {
+        let route = route_clone.clone();
+        let sim = sim_result_clone.clone();
+        let wallet = wallet_clone.clone();
+        let builder = builder_clone;
+
+        async move {
+            builder.build_and_sign(
+                &route,
+                &sim,
+                tx_hash,
+                0,
+                new_reward,
+                bid.min_profit, // Note: min_profit could also be scaled
+                &wallet,
+                nonce_clone,
+                1,
+                base_fee
+            ).await
+        }
+    }).await;
 
     // Log to DB
     db.log_bundle(

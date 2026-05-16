@@ -4,13 +4,15 @@ use crate::types::ArbitrageRoute;
 use alloy::providers::Provider;
 use alloy::network::Network;
 use alloy::transports::Transport;
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, U256, Bytes};
 use eyre::Result;
 use revm::{
     db::{CacheDB, EmptyDB},
-    primitives::AccountInfo,
+    primitives::{AccountInfo, Env, TransactTo, ExecutionResult, U256 as rU256},
+    Evm,
 };
 use std::time::Instant;
+use std::sync::Arc;
 
 /// Result of a successful simulation.
 #[derive(Debug, Clone)]
@@ -51,8 +53,9 @@ impl EvmSimulator {
     pub async fn simulate<T, N, P>(
         &self,
         route: &ArbitrageRoute,
-        _provider: &P,
+        provider: Arc<P>,
         executor_address: Address,
+        calldata: Bytes,
     ) -> Result<SimulationResult>
     where
         T: Transport + Clone,
@@ -61,26 +64,49 @@ impl EvmSimulator {
     {
         let start = Instant::now();
 
-        // 1. Initialize CacheDB
+        // 1. Initialize AlchemistDB (state forking)
+        // Note: AlchemistDB is a mock placeholder here; in production, use a real state fork DB.
         let mut db = CacheDB::new(EmptyDB::default());
 
         // 2. Setup mock executor account
         db.insert_account_info(executor_address, AccountInfo {
-            balance: U256::from(10u128.pow(18)), // 1 ETH
+            balance: rU256::from(10u128.pow(18)), // 1 ETH
             ..Default::default()
         });
 
-        // 3. Structural simulation - in a full impl, this would fetch state and run Evm
-        let best_loan_size = route.optimal_loan_size;
-        let estimated_gas = 21_000u64 + 100_000 + (route.legs.len() as u64 * 100_000);
-        let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+        // 3. Configure EVM Environment
+        let mut env = Env::default();
+        env.tx.caller = executor_address;
+        env.tx.transact_to = TransactTo::Call(executor_address); // Mocking call to self or contract
+        env.tx.data = calldata;
+        env.tx.value = rU256::ZERO;
 
-        Ok(SimulationResult {
-            optimal_loan_size: best_loan_size,
-            gross_profit: route.expected_gross_profit,
-            gas_used: estimated_gas,
-            optimized_legs: Vec::new(),
-            simulation_duration_ms: duration_ms,
-        })
+        // 4. Execute simulation
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .with_env(Box::new(env))
+            .build();
+
+        let ref_tx = evm.transact()?;
+        let result = ref_tx.result;
+
+        match result {
+            ExecutionResult::Success { gas_used, .. } => {
+                let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+                Ok(SimulationResult {
+                    optimal_loan_size: route.optimal_loan_size,
+                    gross_profit: route.expected_gross_profit,
+                    gas_used,
+                    optimized_legs: Vec::new(),
+                    simulation_duration_ms: duration_ms,
+                })
+            }
+            ExecutionResult::Revert { gas_used, output } => {
+                eyre::bail!("Simulation reverted: gas_used={}, output={:?}", gas_used, output)
+            }
+            ExecutionResult::Halt { reason, .. } => {
+                eyre::bail!("Simulation halted: reason={:?}", reason)
+            }
+        }
     }
 }

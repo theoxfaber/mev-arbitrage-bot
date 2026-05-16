@@ -149,36 +149,63 @@ impl MempoolScanner {
     ) -> Result<()> {
         use alloy::providers::{Provider, ProviderBuilder};
         use alloy::consensus::Transaction;
+        use tokio::time::{sleep, Duration};
 
-        let provider = ProviderBuilder::new()
-            .on_ws(alloy::rpc::client::WsConnect::new(url))
-            .await?;
+        let mut retry_delay = Duration::from_secs(1);
 
-        let sub = provider.subscribe_full_pending_transactions().await?;
-        let mut stream = sub.into_stream();
+        loop {
+            let provider_res = ProviderBuilder::new()
+                .on_ws(alloy::rpc::client::WsConnect::new(url))
+                .await;
 
-        tracing::info!(rpc = %stats.id, "Subscribed to pending transactions");
+            let provider = match provider_res {
+                Ok(p) => {
+                    retry_delay = Duration::from_secs(1); // Reset on success
+                    p
+                }
+                Err(e) => {
+                    tracing::error!(rpc = %stats.id, error = %e, "WebSocket connection failed, retrying...");
+                    sleep(retry_delay).await;
+                    retry_delay = (retry_delay * 2).min(Duration::from_secs(60));
+                    continue;
+                }
+            };
 
-        while let Some(tx) = stream.next().await {
-            let hash = *tx.inner.tx_hash();
-            if dedup.check_and_insert(hash) {
-                continue;
-            }
+            let sub_res = provider.subscribe_full_pending_transactions().await;
+            let sub = match sub_res {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!(rpc = %stats.id, error = %e, "Subscription failed, retrying...");
+                    sleep(retry_delay).await;
+                    continue;
+                }
+            };
 
-            stats.wins.fetch_add(1, Ordering::Relaxed);
-            crate::metrics::record_tx_scanned(&stats.id);
+            let mut stream = sub.into_stream();
+            tracing::info!(rpc = %stats.id, "Subscribed to pending transactions");
 
-            if let Some(to) = tx.inner.to() {
-                let input = tx.inner.input();
-                if let Some(opportunity) = decoder.decode(hash, to, input) {
-                    if opportunity.is_actionable {
-                        let _ = outgoing.try_send(opportunity);
+            while let Some(tx) = stream.next().await {
+                let hash = *tx.inner.tx_hash();
+                if dedup.check_and_insert(hash) {
+                    continue;
+                }
+
+                stats.wins.fetch_add(1, Ordering::Relaxed);
+                crate::metrics::record_tx_scanned(&stats.id);
+
+                if let Some(to) = tx.inner.to() {
+                    let input = tx.inner.input();
+                    if let Some(opportunity) = decoder.decode(hash, to, input) {
+                        if opportunity.is_actionable {
+                            let _ = outgoing.try_send(opportunity);
+                        }
                     }
                 }
             }
-        }
 
-        Ok(())
+            tracing::warn!(rpc = %stats.id, "Stream ended, reconnecting...");
+            sleep(Duration::from_secs(1)).await;
+        }
     }
 
     pub fn process_pending_tx(&self, tx: PendingTx, rpc_idx: usize, outgoing: &mpsc::Sender<SandwichOpportunity>) {

@@ -1,4 +1,5 @@
 use alloy_primitives::{Address, U256};
+use std::sync::Arc;
 use mev_arbitrage_bot::simulator::EvmSimulator;
 use mev_arbitrage_bot::types::{ArbitrageRoute, PoolState, SwapLeg};
 use std::collections::HashMap;
@@ -88,10 +89,10 @@ async fn test_evm_simulator_binary_search() {
         confidence: 0.95,
     };
 
-    let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
+    let provider = Arc::new(ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap()));
 
     let result = simulator
-        .simulate(&route, &provider, Address::ZERO)
+        .simulate(&route, provider, Address::ZERO, alloy_primitives::Bytes::default())
         .await
         .expect("Simulation should succeed");
 

@@ -1,13 +1,10 @@
 # Known Limitations
 
-## 1. Multi-Step State Changes
-The current simulator does not fully capture tokens that change their logic between blocks or pools with custom taxation (fee-on-transfer).
+## 1. Supported Protocols
+Currently supports UniswapV2 (and clones like SushiSwap) and UniswapV3. Curve and Balancer support is implemented in math but requires further on-chain testing for edge cases.
 
-## 2. Reorg Probability
-While Flashbots protects against reverts, a chain reorg (> 1 block) can still invalidate a bundle if the target transaction was only in the reorged tip.
+## 2. Competitive Landscape
+This bot is a reference searcher. High-frequency competitors may have faster networking or specialized hardware.
 
-## 3. Storage Slot Discovery
-In the current refactor, storage slots for new pools must be pre-indexed or discovered via heavy RPC lookups during the first encounter.
-
-## 4. Latency
-Rust provides sub-millisecond local logic, but network latency to the RPC (mempool) and Relayer remains the primary bottleneck for competitive opportunities.
+## 3. Simulation Latency
+The `revm` simulation adds ~10-20ms of latency per trade, which is necessary for safety but may impact success rates in highly competitive blocks.

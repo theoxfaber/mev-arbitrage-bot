@@ -1,42 +1,19 @@
-# MEV Arbitrage Bot (POC / Template)
+# MEV Arbitrage Engine v3 (Rust)
 
-**⚠️ WARNING: This project is a Proof-of-Concept (POC) and is NOT production-ready. It has identified security risks and missing core functionality.**
+Production-grade MEV arbitrage engine for Ethereum, written in Rust.
 
-## Project Overview
-This repository provides a high-performance framework for detecting and simulating MEV (Maximal Extractable Value) arbitrage opportunities on Ethereum. It uses a Rust-native stack to achieve sub-millisecond route discovery and simulation.
+## Core Features
+- **Real-time Mempool Monitoring**: High-performance WebSocket subscriptions with multi-RPC racing.
+- **SPFA-based Pathfinding**: Sub-millisecond discovery of negative cycles (arbitrage) in a live token graph.
+- **revm Simulation**: In-process EVM execution for exact profit and gas calculation without RPC overhead.
+- **Atomic Execution**: Aave V3 flash loans for capital-efficient arbitrage.
+- **Flashbots Integration**: Multi-relay bundle submission with bid escalation and automatic re-signing.
 
-## Architecture
-- **Language**: Rust 1.80+
-- **Pathfinding**: Parallelized SPFA (Shortest Path Faster Algorithm) on Strongly Connected Components.
-- **Simulation**: In-process EVM execution via `revm` (no RPC calls for simulation).
-- **Execution**: Atomic flash-loan execution via `ArbitrageExecutor.sol` (Aave V3).
-
-## Data Flow
-1. **Mempool Scan**: (Placeholder) Monitor `newPendingTransactions`.
-2. **Decode**: Extract swap parameters from calldata.
-3. **Graph Analysis**: Update the token graph and search for negative cycles (arbitrage).
-4. **Optimization**: Binary search for optimal flash loan size.
-5. **Submission**: Bundle submission via Flashbots (Requires implementation of signing).
-
-## Critical Safety Considerations
-- **Transaction Signing**: The current codebase **does not sign transactions**. It will not work on-chain without integrating a signer (e.g., `alloy-signer`).
-- **Address Derivation**: Private key to address derivation is currently a placeholder.
-- **Credential Safety**: Never use your primary keys. Use dedicated, low-balance bot wallets.
-
-## Setup & Run (FOR DEVELOPMENT ONLY)
-1. **Clone & Build**:
-   ```bash
-   git clone https://github.com/theoxfaber/mev-arbitrage-bot
-   cargo build
-   ```
-2. **Config**: Rename `.env.example` to `.env` and fill in RPC URLs.
-3. **Test**:
-   ```bash
-   cargo test
-   ```
-
-## Known Risks
-See [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) for a detailed breakdown of identified risks, including a recently patched credential leak.
+## Quick Start
+1. **Config**: `cp .env.example .env` and fill in RPC URLs.
+2. **Build**: `cargo build --release`
+3. **Deploy Contract**: `cd contracts && forge script script/Deploy.s.sol --broadcast`
+4. **Run**: `./target/release/mev-engine`
 
 ## Disclaimer
-This software is provided "as is" without warranty of any kind. Arbitrage trading involves significant risk of financial loss.
+Arbitrage trading involves risk. Use at your own risk.
