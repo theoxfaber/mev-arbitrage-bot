@@ -1,16 +1,15 @@
 //! Nonce-safe wallet pool with per-wallet locking and alloy-signer integration.
 
+use alloy::network::Network;
+use alloy::providers::Provider;
 use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
+use alloy::transports::Transport;
 use alloy_primitives::Address;
 use eyre::{Context, Result};
 use parking_lot::Mutex;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use alloy::network::Network;
-use alloy::transports::Transport;
-use alloy::providers::Provider;
 
 /// A managed wallet with safe nonce tracking and alloy-signer.
 pub struct ManagedWallet {
@@ -55,9 +54,9 @@ impl WalletPool {
         })
     }
 
-    pub async fn execute_with_wallet<F, T_Ret>(&self, callback: F) -> Result<T_Ret>
+    pub async fn execute_with_wallet<F, TRet>(&self, callback: F) -> Result<TRet>
     where
-        F: FnOnce(&PrivateKeySigner, Address, u64) -> Result<T_Ret>,
+        F: FnOnce(&PrivateKeySigner, Address, u64) -> Result<TRet>,
     {
         let idx = self.current_index.fetch_add(1, Ordering::Relaxed) as usize % self.wallets.len();
         let wallet = &self.wallets[idx];

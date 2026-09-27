@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, Bytes, TxHash};
 use mev_arbitrage_bot::scanner::decoder::new_decimals_cache;
-use mev_arbitrage_bot::scanner::mempool::{PendingTx, MempoolScanner};
+use mev_arbitrage_bot::scanner::mempool::{MempoolScanner, PendingTx};
 use mev_arbitrage_bot::types::SandwichOpportunity;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -17,8 +17,8 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
     let scanner = Arc::new(MempoolScanner::new(urls, decimals));
     let (tx, mut rx) = mpsc::channel::<SandwichOpportunity>(1000);
 
-    // Start scanner background tasks (stats/dedup maintenance)
-    scanner.start(tx.clone()).await.unwrap();
+    // NOTE: do not call scanner.start() here — it spawns infinite WS
+    // reconnect loops holding channel clones open (test would hang).
 
     // Create 10,000 "duplicate" transactions across 3 simulated RPCs concurrently
     let tx_count = 10_000;
@@ -37,14 +37,16 @@ async fn test_mempool_scanner_deduplication_under_chaos() {
                 let tx_hash = TxHash::from(hash_bytes);
 
                 // Construct a mock exactInputSingle calldata to trigger the decoder occasionally
-                // (every 1000th tx is a valid UniswapV3 swap)
+                // (every 1000th tx is a valid UniswapV3 whale swap: 1 ETH in, no protection)
                 let input = if i % 1000 == 0 {
                     // Valid 4-byte selector + 32 byte offset + struct data (8 * 32 bytes)
                     let mut data = vec![0x41, 0x4b, 0xf3, 0x89];
                     data.resize(4 + 32 + 8 * 32, 0);
-                    // Set amount_in (at struct_offset + 128) to something non-zero to pass high slippage check
+                    // amount_in at struct_offset+128: 1 ETH (whale threshold)
                     let amount_in_offset = 4 + 32 + 128;
-                    data[amount_in_offset + 31] = 0xFF;
+                    let one_eth = 1_000_000_000_000_000_000u128.to_be_bytes();
+                    data[amount_in_offset + 16..amount_in_offset + 32].copy_from_slice(&one_eth);
+                    // min_amount_out stays zero => no protection => actionable
                     Bytes::from(data)
                 } else {
                     Bytes::from(vec![0x00; 10]) // Invalid / ignored

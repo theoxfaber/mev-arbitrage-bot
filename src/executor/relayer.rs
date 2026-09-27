@@ -48,7 +48,12 @@ impl FlashbotsRelayer {
             Ok(h) => h,
             Err(e) => {
                 tracing::error!(error = %e, "Failed to build Flashbots auth header");
-                return vec![("all".to_string(), BundleOutcome::Aborted { reason: e.to_string() })];
+                return vec![(
+                    "all".to_string(),
+                    BundleOutcome::Aborted {
+                        reason: e.to_string(),
+                    },
+                )];
             }
         };
 
@@ -60,9 +65,12 @@ impl FlashbotsRelayer {
             let url = url.to_string();
             let name = name.to_string();
             let auth_header = auth_header.clone();
+            let target_block = bundle.target_block;
 
             handles.push(tokio::spawn(async move {
-                let result = Self::submit_to_relay(&client, &url, &bundle_json, &auth_header).await;
+                let result =
+                    Self::submit_to_relay(&client, &url, &bundle_json, &auth_header, target_block)
+                        .await;
                 crate::metrics::record_bundle_submitted(&name);
                 (name, result)
             }));
@@ -147,6 +155,7 @@ impl FlashbotsRelayer {
         url: &str,
         bundle_json: &Value,
         auth_header: &str,
+        target_block: u64,
     ) -> BundleOutcome {
         match client
             .post(url)
@@ -165,7 +174,9 @@ impl FlashbotsRelayer {
                                     reason: error.to_string(),
                                 }
                             } else {
-                                BundleOutcome::Included { block: 0 }
+                                BundleOutcome::Included {
+                                    block: target_block,
+                                }
                             }
                         }
                         Err(e) => BundleOutcome::RelayError {
@@ -205,10 +216,11 @@ impl FlashbotsRelayer {
     }
 
     /// Sign the bundle payload with the auth key using EIP-191.
+    /// Flashbots expects `signMessage(keccak256(body))` (prefixed), not a raw hash sign.
     async fn build_auth_header(&self, bundle_json: &Value) -> eyre::Result<String> {
         let body = serde_json::to_string(bundle_json)?;
         let hashed_body = alloy_primitives::keccak256(body.as_bytes());
-        let signature = self.auth_signer.sign_hash(&hashed_body).await?;
+        let signature = self.auth_signer.sign_message(&hashed_body[..]).await?;
 
         Ok(format!(
             "{:?}:0x{}",

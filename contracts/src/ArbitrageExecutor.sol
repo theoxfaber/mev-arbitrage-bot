@@ -96,6 +96,8 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
     }
 
     constructor(address _pool, address _addressesProvider) {
+        require(_pool != address(0), "pool zero");
+        require(_addressesProvider != address(0), "provider zero");
         owner = msg.sender;
         POOL = IPool(_pool);
         ADDRESSES_PROVIDER_CONTRACT = IPoolAddressesProvider(_addressesProvider);
@@ -108,6 +110,9 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
         uint256 minerReward,
         Action[] calldata actions
     ) external onlyOwner nonReentrant {
+        require(asset != address(0), "asset zero");
+        require(amount > 0, "amount zero");
+        require(actions.length > 0, "no actions");
         if (minerReward > 0 && address(this).balance < minerReward) {
             revert InsufficientETHForMiner(address(this).balance, minerReward);
         }
@@ -132,6 +137,32 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
         uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
 
+        _runActions(actions);
+
+        uint256 amountOwed = amount + premium;
+        uint256 balanceAfter = IERC20(asset).balanceOf(address(this));
+
+        // NOTE: balanceBefore already includes the flash-loaned `amount`
+        // (Aave funds us before calling executeOperation), so the required
+        // balance is balanceBefore + premium, NOT balanceBefore + amount + premium.
+        {
+            uint256 required = balanceBefore + premium;
+            if (balanceAfter < required)
+                revert ArbitrageUnprofitable(balanceAfter, required);
+        }
+
+        uint256 profit = balanceAfter - balanceBefore - premium;
+        if (profit < minProfit) revert ProfitBelowMinimum(profit, minProfit);
+
+        _payMiner(minerReward);
+
+        IERC20(asset).approve(address(POOL), amountOwed);
+
+        emit ArbitrageExecuted(asset, amount, profit, minerReward, gasStart - gasleft());
+        return true;
+    }
+
+    function _runActions(Action[] memory actions) internal {
         uint256 len = actions.length;
         for (uint256 i = 0; i < len;) {
             Action memory action = actions[i];
@@ -146,7 +177,9 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
 
             if (!success) {
                 if (returnData.length > 0) {
-                    assembly { revert(add(32, returnData), mload(returnData)) }
+                    assembly {
+                        revert(add(32, returnData), mload(returnData))
+                    }
                 }
                 revert ActionCallFailed(i, returnData);
             }
@@ -155,39 +188,29 @@ contract ArbitrageExecutor is IFlashLoanSimpleReceiver, ReentrancyGuard {
                 IERC20(action.approveToken).approve(action.target, 0);
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
+    }
 
-        uint256 amountOwed = amount + premium;
-        uint256 balanceAfter = IERC20(asset).balanceOf(address(this));
-
-        if (balanceAfter < balanceBefore + amountOwed)
-            revert ArbitrageUnprofitable(balanceAfter, balanceBefore + amountOwed);
-
-        uint256 profit = balanceAfter - (balanceBefore + amountOwed);
-        if (profit < minProfit)
-            revert ProfitBelowMinimum(profit, minProfit);
-
+    function _payMiner(uint256 minerReward) internal {
         if (minerReward > 0) {
-            (bool paid, ) = block.coinbase.call{value: minerReward}("");
+            (bool paid,) = block.coinbase.call{value: minerReward}("");
             if (!paid) revert MinerPaymentFailed();
         }
-
-        IERC20(asset).approve(address(POOL), amountOwed);
-
-        emit ArbitrageExecuted(asset, amount, profit, minerReward, gasStart - gasleft());
-        return true;
     }
 
     function emergencyWithdraw(address token) external onlyOwner {
         uint256 amt;
         if (token == address(0)) {
             amt = address(this).balance;
-            (bool ok, ) = owner.call{value: amt}("");
+            (bool ok,) = owner.call{value: amt}("");
             if (!ok) revert MinerPaymentFailed();
         } else {
             amt = IERC20(token).balanceOf(address(this));
-            IERC20(token).transfer(owner, amt);
+            bool ok = IERC20(token).transfer(owner, amt);
+            require(ok, "transfer failed");
         }
         emit EmergencyWithdrawal(token, amt);
     }

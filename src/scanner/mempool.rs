@@ -5,11 +5,11 @@ use crate::types::SandwichOpportunity;
 use alloy_primitives::{Address, Bytes, TxHash};
 use dashmap::DashMap;
 use eyre::Result;
+use futures_util::StreamExt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use futures_util::StreamExt;
 
 // ─── Pending Transaction ─────────────────────────────────────────────────────
 
@@ -125,13 +125,9 @@ impl MempoolScanner {
             let stats = Arc::clone(&self.rpc_stats[i]);
 
             tokio::spawn(async move {
-                if let Err(e) = Self::subscribe_and_process(
-                    &url,
-                    outgoing,
-                    decoder,
-                    dedup,
-                    stats
-                ).await {
+                if let Err(e) =
+                    Self::subscribe_and_process(&url, outgoing, decoder, dedup, stats).await
+                {
                     tracing::error!(url = %url, error = %e, "Mempool subscription failed");
                 }
             });
@@ -147,8 +143,8 @@ impl MempoolScanner {
         dedup: Arc<DedupeCache>,
         stats: Arc<RpcStats>,
     ) -> Result<()> {
-        use alloy::providers::{Provider, ProviderBuilder};
         use alloy::consensus::Transaction;
+        use alloy::providers::{Provider, ProviderBuilder};
         use tokio::time::{sleep, Duration};
 
         let mut retry_delay = Duration::from_secs(1);
@@ -208,7 +204,12 @@ impl MempoolScanner {
         }
     }
 
-    pub fn process_pending_tx(&self, tx: PendingTx, rpc_idx: usize, outgoing: &mpsc::Sender<SandwichOpportunity>) {
+    pub fn process_pending_tx(
+        &self,
+        tx: PendingTx,
+        rpc_idx: usize,
+        outgoing: &mpsc::Sender<SandwichOpportunity>,
+    ) {
         if self.dedup.check_and_insert(tx.hash) {
             return;
         }

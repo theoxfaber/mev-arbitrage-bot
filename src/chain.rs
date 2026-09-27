@@ -128,13 +128,51 @@ impl ChainAdapter for BaseAdapter {
     }
     fn estimate_effective_gas_price(
         &self,
-        _gas_used: u64,
+        gas_used: u64,
         base_fee: U256,
         priority_fee: U256,
     ) -> U256 {
-        // Base (OP Stack) has L1 data fee.
-        // simplified: base_fee + priority_fee + (l1_fee / gas_used)
-        base_fee + priority_fee
+        // OP-Stack: L2 execution + L1 data fee amortized over gas_used.
+        // Conservative 0.5 gwei L1 cushion when gas_used is unknown.
+        let l1_fee = U256::from(500_000_000u64);
+        let amortized = if gas_used > 0 {
+            l1_fee / U256::from(gas_used.max(1))
+        } else {
+            l1_fee / U256::from(200_000u64)
+        };
+        base_fee + priority_fee + amortized
+    }
+    fn recommended_flash_loan_providers(&self) -> Vec<FlashLoanProvider> {
+        vec![FlashLoanProvider::BalancerV2, FlashLoanProvider::UniswapV3]
+    }
+}
+
+pub struct OptimismAdapter;
+impl ChainAdapter for OptimismAdapter {
+    fn chain(&self) -> Chain {
+        Chain::Optimism
+    }
+    fn multicall_address(&self) -> Address {
+        "0xcA11bde05977b3631167028862bE2a173976CA11"
+            .parse()
+            .unwrap()
+    }
+    fn average_block_time_ms(&self) -> u64 {
+        2000
+    }
+    fn estimate_effective_gas_price(
+        &self,
+        gas_used: u64,
+        base_fee: U256,
+        priority_fee: U256,
+    ) -> U256 {
+        let l1_fee = U256::from(500_000_000u64);
+        let amortized = if gas_used > 0 {
+            l1_fee / U256::from(gas_used.max(1))
+        } else {
+            l1_fee / U256::from(200_000u64)
+        };
+        base_fee + priority_fee + amortized
     }
     fn recommended_flash_loan_providers(&self) -> Vec<FlashLoanProvider> {
         vec![FlashLoanProvider::BalancerV2, FlashLoanProvider::UniswapV3]
